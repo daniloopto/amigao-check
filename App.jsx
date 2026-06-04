@@ -1006,16 +1006,18 @@ export default function App() {
 
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <div style={S.ttl}>⚠️ Plano de Ação</div>
-            {user?.role!=="manutencao"&&<button onClick={()=>setNewPend(true)} style={{background:"#f5c518",color:"#000",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,fontSize:13,cursor:"pointer"}}>+ Nova</button>}
           </div>
 
           {/* Tipo tabs — só mostra para quem não é manutenção */}
           {user?.role!=="manutencao"&&(
-            <div style={{display:"flex",gap:0,marginBottom:14,background:"#161616",borderRadius:10,padding:4}}>
+            <>
+            <div style={{display:"flex",gap:0,marginBottom:10,background:"#161616",borderRadius:10,padding:4}}>
               {[["processo","🏪 Processos da Loja"],["manutencao","🔧 Manutenção"]].map(([v,l])=>(
                 <button key={v} onClick={()=>setPendTipo(v)} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",background:pendTipo===v?"#f5c518":"transparent",color:pendTipo===v?"#000":"#888",cursor:"pointer",fontWeight:700,fontSize:13,transition:"all 0.2s"}}>{l}</button>
               ))}
             </div>
+            <button onClick={()=>setNewPend(true)} style={{...S.bp,marginBottom:14,background:"#1a1a1a",color:"#f5c518",border:"1px solid #f5c518"}}>➕ Nova Pendência</button>
+            </>
           )}
 
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>

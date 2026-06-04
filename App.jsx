@@ -650,9 +650,9 @@ export default function App() {
       <div style={S.hdr}>
         <div style={{background:"#f5c518",borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>👓</div>
         <div style={{flex:1}}><div style={{fontSize:15,fontWeight:900,color:"#f5c518",letterSpacing:-0.5}}>AMIGÃO CHECK</div><div style={{fontSize:10,color:"#666",letterSpacing:1}}>SUPERVISÃO OPERACIONAL</div></div>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>setShowSettings(true)} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:20,padding:"4px 8px",color:"#888",fontSize:13,cursor:"pointer"}}>⚙️</button>
-          <div style={{background:"#1a1a1a",borderRadius:20,padding:"4px 8px",fontSize:11,color:"#f5c518"}}>{user?.role?.includes("diretor")?"👑":"👤"} {user?.nome?.split(" ")[0]}</div>
+        <div style={{display:"flex",gap:5,alignItems:"center"}}>
+          <button onClick={()=>setShowSettings(true)} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:20,padding:"5px 9px",color:"#f5c518",fontSize:15,cursor:"pointer",lineHeight:1}}>⚙️</button>
+          <div style={{background:"#1a1a1a",borderRadius:20,padding:"4px 8px",fontSize:11,color:"#f5c518",whiteSpace:"nowrap"}}>{user?.role?.includes("diretor")?"👑":"👤"} {user?.nome?.split(" ")[0]}</div>
           <button onClick={()=>{setUser(null);setPage("login");}} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:20,padding:"4px 8px",color:"#888",fontSize:11,cursor:"pointer"}}>Sair</button>
         </div>
       </div>

@@ -86,6 +86,7 @@ export default function App() {
   const [gerenteIndDate, setGerenteIndDate] = useState(getToday());
   const [gerenteIndForm, setGerenteIndForm] = useState({});
   const [gerenteIndDone, setGerenteIndDone] = useState(false);
+  const [gerenteLoja, setGerenteLoja] = useState(null);
 
   // Dashboard
   const [dashLoja, setDashLoja] = useState("todas"); const [dashChart, setDashChart] = useState("meta");
@@ -281,7 +282,7 @@ export default function App() {
     } catch(err) { console.error("Erro ao salvar visita:", err); alert("Erro ao salvar: " + err.message); }
   };
 
-  const reset = () => { setSelStore(null); setClDone(false); setAnswers({}); setClStep(0); setClLoja(null); setVForm({data:getToday(),vendas:"",atendimentos:"",vendas_realizadas:"",type:"Rotina",gerente:"Sim",obs:""}); setIndDone(false); setIndLoja(null); setIndForm({data:getToday(),vendas:"",receita:"",atendimentos:"",vendas_realizadas:"",obs:""}); };
+  const reset = () => { setSelStore(null); setClDone(false); setAnswers({}); setClStep(0); setClLoja(null); setVForm({data:getToday(),vendas:"",atendimentos:"",vendas_realizadas:"",type:"Rotina",gerente:"Sim",obs:""}); setIndDone(false); setIndLoja(null); setIndForm({data:getToday(),vendas:"",receita:"",atendimentos:"",vendas_realizadas:"",obs:""}); setGerenteLoja(null); };
 
   const S = {
     app:{minHeight:"100vh",background:"#0a0a0a",color:"#f5f5f5",fontFamily:"'Segoe UI',system-ui,sans-serif",paddingBottom:120},
@@ -592,7 +593,7 @@ export default function App() {
   // ── MAIN PAGES ────────────────────────────────────────────────
   // ── GERENTE PAGE ─────────────────────────────────────────────
   if(page==="gerente_ind") {
-    const lojaGerente = uLojas[0];
+    const lojaGerente = gerenteLoja || uLojas[0];
     const lojaVendedores = vendedores.filter(v=>v.loja_id===lojaGerente?.id&&v.ativo);
     const jaLancou = lojaVendedores.some(v=>uIndV.some(i=>i.vendedor_id===v.id&&i.data===gerenteIndDate));
     return(
@@ -600,8 +601,11 @@ export default function App() {
         <style>{`*{box-sizing:border-box}`}</style>
         <div style={S.hdr}>
           <div style={{background:"#f5c518",borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>👓</div>
-          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:900,color:"#f5c518"}}>INDICADORES</div><div style={{fontSize:10,color:"#666"}}>{lojaGerente?.nome||""} · {user?.nome}</div></div>
-          <button onClick={()=>{setUser(null);setPage("login");}} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:20,padding:"4px 8px",color:"#888",fontSize:11,cursor:"pointer"}}>Sair</button>
+          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:900,color:"#f5c518"}}>INDICADORES VENDEDORES</div><div style={{fontSize:10,color:"#666"}}>{lojaGerente?.nome||""} · {user?.nome}</div></div>
+          <div style={{display:"flex",gap:6}}>
+            {user?.role!=="gerente"&&<button onClick={()=>{setGerenteLoja(null);setPage("lojas");setSelStore(lojaGerente);}} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:20,padding:"4px 8px",color:"#f5c518",fontSize:11,cursor:"pointer"}}>← Voltar</button>}
+            <button onClick={()=>{setUser(null);setPage("login");}} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:20,padding:"4px 8px",color:"#888",fontSize:11,cursor:"pointer"}}>Sair</button>
+          </div>
         </div>
 
         <div style={{padding:16}}>
@@ -1666,7 +1670,11 @@ export default function App() {
 
             <button style={S.bp} onClick={()=>{setClLoja(selStore);setPage("visita");setSelStore(null);setClStep(0);}}>✅ Nova Visita</button>
             <div style={{height:8}}/>
-            <button style={{...S.bp,background:"#1a1200",color:"#f5c518"}} onClick={()=>{setIndLoja(selStore);setPage("indicadores");}}>📈 Lançar Indicadores</button>
+            <button style={{...S.bp,background:"#1a1200",color:"#f5c518"}} onClick={()=>{setIndLoja(selStore);setPage("indicadores");}}>📈 Lançar Indicadores da Loja</button>
+            <div style={{height:8}}/>
+            {vendedores.filter(v=>v.loja_id===selStore?.id&&v.ativo).length>0&&(
+              <button style={{...S.bp,background:"#1a0a2a",color:"#a855f7"}} onClick={()=>{setGerenteLoja(selStore);setGerenteIndDate(getToday());setGerenteIndForm({});setGerenteIndDone(false);setPage("gerente_ind");}}>👥 Indicadores por Vendedor</button>
+            )}
             {FOOTER}
           </div>
         );

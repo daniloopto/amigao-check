@@ -42,7 +42,8 @@ const stc = (s) => s==="verde"?"#16a34a":s==="amarelo"?"#d97706":"#dc2626";
 const stb = (s) => s==="verde"?"#052e16":s==="amarelo"?"#1c1200":"#1c0000";
 const pc = (p) => p==="critica"?"#dc2626":p==="alta"?"#f97316":p==="media"?"#d97706":"#6b7280";
 const psc = (s) => s==="vencido"?"#dc2626":s==="em andamento"?"#3b82f6":s==="resolvido"?"#16a34a":"#d97706";
-const today = new Date().toISOString().split("T")[0];
+const getToday = () => new Date().toISOString().split("T")[0];
+const today = getToday();
 const daysAgo = (d) => { const dt=new Date(); dt.setDate(dt.getDate()-d); return dt.toISOString().split("T")[0]; };
 const yesterday = daysAgo(1);
 const getPeriod = (p, f, t) => {
@@ -90,7 +91,7 @@ export default function App() {
   const [indFilter, setIndFilter] = useState("7"); const [indFilterLoja, setIndFilterLoja] = useState("todas");
 
   // Visita/Checklist
-  const [clLoja, setClLoja] = useState(null); const [clStep, setClStep] = useState(0); const [answers, setAnswers] = useState({}); const [vForm, setVForm] = useState({ vendas:"", atendimentos:"", vendas_realizadas:"", type:"Rotina", gerente:"Sim", obs:"" }); const [clDone, setClDone] = useState(false);
+  const [clLoja, setClLoja] = useState(null); const [clStep, setClStep] = useState(0); const [answers, setAnswers] = useState({}); const [vForm, setVForm] = useState({ data:getToday(), vendas:"", atendimentos:"", vendas_realizadas:"", type:"Rotina", gerente:"Sim", obs:"" }); const [clDone, setClDone] = useState(false);
 
   // Pendencias
   const [pendFilter, setPendFilter] = useState("todos");
@@ -219,7 +220,7 @@ export default function App() {
     const score=calcScore(); const status=score>=85?"verde":score>=70?"amarelo":"vermelho";
     const a=parseInt(vForm.atendimentos)||0; const vr=parseInt(vForm.vendas_realizadas)||0;
     const conv=a>0?Math.round((vr/a)*100):0; const ticket=vr>0?Math.round((parseFloat(vForm.vendas)||0)/vr):0;
-    const visitPayload = { loja_id:clLoja.id, loja_nome:clLoja.nome, usuario_id:user.id, supervisor_nome:user.nome, data_visita:today, tipo_visita:vForm.type, gerente_presente:vForm.gerente, vendas:parseFloat(vForm.vendas)||0, atendimentos:a, vendas_realizadas:vr, conversao:conv, ticket_medio:ticket, obs_geral:vForm.obs||"", nota_final:score, status_loja:status };
+    const visitPayload = { loja_id:clLoja.id, loja_nome:clLoja.nome, usuario_id:user.id, supervisor_nome:user.nome, data_visita:vForm.data||getToday(), tipo_visita:vForm.type, gerente_presente:vForm.gerente, vendas:parseFloat(vForm.vendas)||0, atendimentos:a, vendas_realizadas:vr, conversao:conv, ticket_medio:ticket, obs_geral:vForm.obs||"", nota_final:score, status_loja:status };
     const visitResult = await sb("visitas", { method:"POST", body:JSON.stringify(visitPayload) });
     if(!visitResult) { alert("Erro ao salvar visita."); return; }
     const newVisit = Array.isArray(visitResult) ? visitResult[0] : visitResult;
@@ -234,7 +235,7 @@ export default function App() {
     } catch(err) { console.error("Erro ao salvar visita:", err); alert("Erro ao salvar: " + err.message); }
   };
 
-  const reset = () => { setSelStore(null); setClDone(false); setAnswers({}); setClStep(0); setClLoja(null); setVForm({vendas:"",atendimentos:"",vendas_realizadas:"",type:"Rotina",gerente:"Sim",obs:""}); setIndDone(false); setIndLoja(null); setIndForm({data:today,vendas:"",receita:"",atendimentos:"",vendas_realizadas:"",obs:""}); };
+  const reset = () => { setSelStore(null); setClDone(false); setAnswers({}); setClStep(0); setClLoja(null); setVForm({data:getToday(),vendas:"",atendimentos:"",vendas_realizadas:"",type:"Rotina",gerente:"Sim",obs:""}); setIndDone(false); setIndLoja(null); setIndForm({data:getToday(),vendas:"",receita:"",atendimentos:"",vendas_realizadas:"",obs:""}); };
 
   const S = {
     app:{minHeight:"100vh",background:"#0a0a0a",color:"#f5f5f5",fontFamily:"'Segoe UI',system-ui,sans-serif",paddingBottom:120},
@@ -460,6 +461,8 @@ export default function App() {
         <div style={{padding:16}}>
           <div style={S.ttl}>Dados da Visita</div>
           <div style={S.card}>
+            <label style={S.lbl}>Data da Visita</label>
+            <input style={{...S.inp,colorScheme:"dark"}} type="date" value={vForm.data} onChange={e=>setVForm({...vForm,data:e.target.value})} />
             <label style={S.lbl}>Tipo de Visita</label>
             <select style={S.sel} value={vForm.type} onChange={e=>setVForm({...vForm,type:e.target.value})}>
               {["Rotina","Auditoria","Problema","Reforço Comercial"].map(t=><option key={t}>{t}</option>)}

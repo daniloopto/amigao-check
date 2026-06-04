@@ -552,20 +552,25 @@ export default function App() {
   // Helper: calcula meta total do período para uma loja
   const calcMetaTotal = (lojaId, from, to, days, period) => {
     const metaMensal = metas[lojaId] || lojas.find(l=>l.id===lojaId)?.meta_mensal || 0;
-    if(period==="mes") return metaMensal; // mês vigente = meta mensal completa
-    // Para outros períodos: soma meses completos + proporcional de meses parciais
+    if(period==="mes") return metaMensal;
     const fromDate = new Date(from); const toDate = new Date(to);
     let total = 0;
     const cur = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
     while(cur <= toDate) {
-      const daysInMonth = new Date(cur.getFullYear(), cur.getMonth()+1, 0).getDate();
-      const monthStart = new Date(cur);
+      const monthStart = new Date(cur.getFullYear(), cur.getMonth(), 1);
       const monthEnd = new Date(cur.getFullYear(), cur.getMonth()+1, 0);
-      const actualStart = monthStart < fromDate ? fromDate : monthStart;
-      const actualEnd = monthEnd > toDate ? toDate : monthEnd;
-      const daysInPeriod = Math.round((actualEnd - actualStart) / 86400000) + 1;
-      const du = getDiasUteis(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,"0")}`);
-      total += Math.round((metaMensal / du) * daysInPeriod);
+      const isFullMonth = fromDate <= monthStart && monthEnd <= toDate;
+      if(isFullMonth) {
+        // Mês completo dentro do período → usa meta mensal inteira
+        total += metaMensal;
+      } else {
+        // Mês parcial (início ou fim do período) → proporcional por dias úteis
+        const actualStart = monthStart < fromDate ? fromDate : monthStart;
+        const actualEnd = monthEnd > toDate ? toDate : monthEnd;
+        const daysInPeriod = Math.round((actualEnd - actualStart) / 86400000) + 1;
+        const du = getDiasUteis(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,"0")}`);
+        total += Math.round((metaMensal / du) * daysInPeriod);
+      }
       cur.setMonth(cur.getMonth() + 1);
     }
     return total;

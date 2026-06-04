@@ -553,6 +553,8 @@ export default function App() {
   const calcMetaTotal = (lojaId, from, to, days, period) => {
     const metaMensal = metas[lojaId] || lojas.find(l=>l.id===lojaId)?.meta_mensal || 0;
     if(period==="mes") return metaMensal;
+    if(period==="6m") return metaMensal * 6;
+    // Para períodos em dias (7, 30) ou custom: proporcional por dias úteis
     const fromDate = new Date(from); const toDate = new Date(to);
     let total = 0;
     const cur = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
@@ -561,10 +563,8 @@ export default function App() {
       const monthEnd = new Date(cur.getFullYear(), cur.getMonth()+1, 0);
       const isFullMonth = fromDate <= monthStart && monthEnd <= toDate;
       if(isFullMonth) {
-        // Mês completo dentro do período → usa meta mensal inteira
         total += metaMensal;
       } else {
-        // Mês parcial (início ou fim do período) → proporcional por dias úteis
         const actualStart = monthStart < fromDate ? fromDate : monthStart;
         const actualEnd = monthEnd > toDate ? toDate : monthEnd;
         const daysInPeriod = Math.round((actualEnd - actualStart) / 86400000) + 1;
@@ -603,7 +603,9 @@ export default function App() {
       const metaMensal = metas[lojaObj?.id] || lojaObj?.meta_mensal || 0;
       const du = getDiasUteis(ym);
       const daysInPeriod = Math.round((new Date(periodTo)-new Date(periodFrom))/86400000)+1;
-      const metaMes = periodFrom===mFrom && periodTo===mTo ? metaMensal : Math.round((metaMensal/du)*daysInPeriod);
+      // Mês completo = meta mensal inteira; mês parcial = proporcional
+      const isFullMonth = periodFrom===mFrom && periodTo===mTo;
+      const metaMes = isFullMonth || dashPeriod==="6m" ? metaMensal : Math.round((metaMensal/du)*daysInPeriod);
       const percMeta = metaMes>0 ? Math.round((totalV/metaMes)*100) : 0;
       const conv = totalAt>0 ? Math.round((totalVR/totalAt)*100) : 0;
       const ticket = totalVR>0 ? Math.round(totalV/totalVR) : 0;

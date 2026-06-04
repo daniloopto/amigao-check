@@ -87,6 +87,8 @@ export default function App() {
   const [gerenteIndForm, setGerenteIndForm] = useState({});
   const [gerenteIndDone, setGerenteIndDone] = useState(false);
   const [gerenteLoja, setGerenteLoja] = useState(null);
+  const [editingIndV, setEditingIndV] = useState(null);
+  const [indVEditForm, setIndVEditForm] = useState({});
 
   // Dashboard
   const [dashLoja, setDashLoja] = useState("todas"); const [dashChart, setDashChart] = useState("meta");
@@ -170,8 +172,23 @@ export default function App() {
     setIndicadores(prev=>prev.filter(i=>i.id!==ind.id));
   };
 
+  const saveIndVEdit = async () => {
+    const v=parseFloat(indVEditForm.vendas)||0; const a=parseInt(indVEditForm.atendimentos)||0; const vr=parseInt(indVEditForm.vendas_realizadas)||0;
+    const conv=a>0?Math.round((vr/a)*100):0; const ticket=vr>0?Math.round(v/vr):0;
+    const payload = { vendas:v, atendimentos:a, vendas_realizadas:vr, conversao:conv, ticket_medio:ticket, obs:indVEditForm.obs||"", data:indVEditForm.data };
+    await sb(`indicadores_vendedor?id=eq.${editingIndV.id}`, { method:"PATCH", body:JSON.stringify(payload) });
+    setIndVendedor(prev=>prev.map(i=>i.id===editingIndV.id?{...i,...payload}:i));
+    setEditingIndV(null);
+  };
+
+  const deleteIndV = async (ind) => {
+    if(!window.confirm(`Excluir indicadores de ${ind.vendedor_nome} em ${new Date(ind.data).toLocaleDateString("pt-BR")}?`)) return;
+    await sb(`indicadores_vendedor?id=eq.${ind.id}`, { method:"DELETE" });
+    setIndVendedor(prev=>prev.filter(i=>i.id!==ind.id));
+  };
+
   const saveGerenteInd = async () => {
-    const lojaId = uLojas[0]?.id;
+    const lojaId = gerenteLoja?.id || uLojas[0]?.id;
     if(!lojaId) return;
     const entries = Object.entries(gerenteIndForm).filter(([k]) => k.match(/^\d+$/));
     const toSave = entries.map(([vendId, vals]) => {
@@ -686,19 +703,51 @@ export default function App() {
           )}
 
           {/* Histórico recente */}
-          {uIndV.filter(i=>i.data===gerenteIndDate).length>0&&(
+          {uIndV.filter(i=>i.loja_id===lojaGerente?.id&&i.data===gerenteIndDate).length>0&&(
             <div style={{marginTop:16}}>
-              <div style={{fontSize:14,fontWeight:700,color:"#888",marginBottom:8}}>JÁ LANÇADO HOJE</div>
+              <div style={{fontSize:14,fontWeight:700,color:"#888",marginBottom:8}}>JÁ LANÇADO — {new Date(gerenteIndDate+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</div>
               {uIndV.filter(i=>i.loja_id===lojaGerente?.id&&i.data===gerenteIndDate).map(i=>(
-                <div key={i.id} style={{...S.card,padding:12,display:"flex",justifyContent:"space-between"}}>
-                  <div style={{fontSize:13,fontWeight:700}}>{i.vendedor_nome}</div>
+                <div key={i.id} style={{...S.card,padding:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                    <div style={{fontSize:13,fontWeight:700,color:"#f5c518"}}>{i.vendedor_nome}</div>
+                    {user?.role==="diretor"&&(
+                      <div style={{display:"flex",gap:6}}>
+                        <button onClick={()=>{setEditingIndV(i);setIndVEditForm({data:i.data,vendas:i.vendas,atendimentos:i.atendimentos,vendas_realizadas:i.vendas_realizadas,obs:i.obs||""});}} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:6,padding:"3px 8px",color:"#f5c518",fontSize:11,cursor:"pointer"}}>✏️</button>
+                        <button onClick={()=>deleteIndV(i)} style={{background:"#1c0000",border:"1px solid #333",borderRadius:6,padding:"3px 8px",color:"#dc2626",fontSize:11,cursor:"pointer"}}>🗑️</button>
+                      </div>
+                    )}
+                  </div>
                   <div style={{display:"flex",gap:12,fontSize:11}}>
-                    <span style={{color:"#3b82f6"}}>R$ {i.vendas}</span>
-                    <span style={{color:"#a855f7"}}>{i.conversao}%</span>
-                    <span style={{color:"#16a34a"}}>R$ {i.ticket_medio}</span>
+                    <span style={{color:"#3b82f6"}}>R$ {(i.vendas||0).toLocaleString("pt-BR")}</span>
+                    {i.meta_dia>0&&<span style={{color:i.vendas>=i.meta_dia?"#16a34a":"#dc2626"}}>{Math.round((i.vendas/(i.meta_dia||1))*100)}% meta</span>}
+                    <span style={{color:"#a855f7"}}>{i.conversao}% conv.</span>
+                    <span style={{color:"#888"}}>R$ {i.ticket_medio} ticket</span>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Edit IndV Modal */}
+          {editingIndV&&(
+            <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#000000ee",zIndex:200,display:"flex",alignItems:"flex-end"}}>
+              <div style={{background:"#111",borderRadius:"16px 16px 0 0",width:"100%",maxHeight:"80vh",overflow:"auto",padding:20}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div style={{fontSize:15,fontWeight:700,color:"#f5c518"}}>✏️ Editar · {editingIndV.vendedor_nome}</div>
+                  <button onClick={()=>setEditingIndV(null)} style={{background:"#222",border:"none",color:"#888",fontSize:18,cursor:"pointer",borderRadius:20,width:32,height:32}}>✕</button>
+                </div>
+                <label style={S.lbl}>Data</label>
+                <input style={{...S.inp,colorScheme:"dark"}} type="date" value={indVEditForm.data} onChange={e=>setIndVEditForm({...indVEditForm,data:e.target.value})} />
+                <label style={S.lbl}>Vendas (R$)</label>
+                <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={indVEditForm.vendas} onChange={e=>setIndVEditForm({...indVEditForm,vendas:e.target.value})} />
+                <label style={S.lbl}>Atendimentos</label>
+                <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={indVEditForm.atendimentos} onChange={e=>setIndVEditForm({...indVEditForm,atendimentos:e.target.value})} />
+                <label style={S.lbl}>Vendas Realizadas</label>
+                <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={indVEditForm.vendas_realizadas} onChange={e=>setIndVEditForm({...indVEditForm,vendas_realizadas:e.target.value})} />
+                <label style={S.lbl}>Observações</label>
+                <textarea style={{...S.inp,height:60,resize:"none"}} value={indVEditForm.obs||""} onChange={e=>setIndVEditForm({...indVEditForm,obs:e.target.value})} />
+                <button style={S.bp} onClick={saveIndVEdit}>Salvar Alterações ✓</button>
+              </div>
             </div>
           )}
           {FOOTER}

@@ -95,6 +95,7 @@ export default function App() {
   // Pendencias
   const [pendFilter, setPendFilter] = useState("todos");
   const [pendTipo, setPendTipo] = useState("processo");
+  const [selPendStore, setSelPendStore] = useState(null);
   const [editingPend, setEditingPend] = useState(null);
   const [newPend, setNewPend] = useState(false);
   const [newPendForm, setNewPendForm] = useState({ loja_id:"", problema:"", categoria:"", responsavel:"", prazo:"", prioridade:"alta", obs:"", tipo:"processo" });
@@ -1037,54 +1038,103 @@ export default function App() {
 
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <div style={S.ttl}>⚠️ Plano de Ação</div>
+            {user?.role!=="manutencao"&&<button onClick={()=>setNewPend(true)} style={{background:"#f5c518",color:"#000",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,fontSize:13,cursor:"pointer"}}>➕ Nova</button>}
           </div>
 
-          {/* Tipo tabs — só mostra para quem não é manutenção */}
+          {/* Tipo tabs */}
           {user?.role!=="manutencao"&&(
-            <>
-            <div style={{display:"flex",gap:0,marginBottom:10,background:"#161616",borderRadius:10,padding:4}}>
+            <div style={{display:"flex",gap:0,marginBottom:14,background:"#161616",borderRadius:10,padding:4}}>
               {[["processo","🏪 Processos"],["manutencao","🔧 Manutenção"]].map(([v,l])=>{
                 const cnt = uPend.filter(p=>p.tipo===v&&p.status!=="resolvido").length;
                 return(
-                  <button key={v} onClick={()=>setPendTipo(v)} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",background:pendTipo===v?"#f5c518":"transparent",color:pendTipo===v?"#000":"#888",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                  <button key={v} onClick={()=>{setPendTipo(v);setSelPendStore(null);}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",background:pendTipo===v?"#f5c518":"transparent",color:pendTipo===v?"#000":"#888",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
                     {l}
                     {cnt>0&&<span style={{background:pendTipo===v?"#000":"#dc2626",color:"#fff",borderRadius:20,fontSize:11,fontWeight:900,minWidth:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"0 5px"}}>{cnt}</span>}
                   </button>
                 );
               })}
             </div>
-            <button onClick={()=>setNewPend(true)} style={{...S.bp,marginBottom:14,background:"#1a1a1a",color:"#f5c518",border:"1px solid #f5c518"}}>➕ Nova Pendência</button>
-            </>
           )}
-
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-            {["todos","pendente","em andamento","vencido","resolvido"].map(f=><button key={f} style={S.fb(pendFilter===f)} onClick={()=>setPendFilter(f)}>{f}</button>)}
-          </div>
 
           {(()=>{
             const tipoFiltrado = user?.role==="manutencao" ? uPend : uPend.filter(p=>p.tipo===pendTipo);
-            const statusFiltrado = pendFilter==="todos" ? tipoFiltrado : tipoFiltrado.filter(p=>p.status===pendFilter);
-            return statusFiltrado.map(p=>(
-            <div key={p.id} style={{...S.card,borderLeft:`3px solid ${pc(p.prioridade)}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                <span style={S.bdg(pc(p.prioridade),`${pc(p.prioridade)}22`)}>{p.prioridade?.toUpperCase()}</span>
-                <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                  <span style={S.bdg(psc(p.status),`${psc(p.status)}22`)}>{p.status?.toUpperCase()}</span>
-                  <button onClick={()=>setEditingPend({...p})} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:6,padding:"3px 8px",color:"#888",fontSize:11,cursor:"pointer"}}>✏️ Editar</button>
+
+            // Store list view
+            if(!selPendStore) {
+              // Get stores that have pendências (open only)
+              const storesWithPend = uLojas.filter(loja =>
+                tipoFiltrado.some(p=>p.loja_id===loja.id&&p.status!=="resolvido")
+              );
+              if(storesWithPend.length===0) return(
+                <div style={{textAlign:"center",color:"#555",padding:40}}>
+                  <div style={{fontSize:32,marginBottom:8}}>✅</div>
+                  <div>Nenhuma pendência aberta!</div>
                 </div>
+              );
+              return storesWithPend.map(loja=>{
+                const lojaPend = tipoFiltrado.filter(p=>p.loja_id===loja.id&&p.status!=="resolvido");
+                const criticas = lojaPend.filter(p=>p.prioridade==="critica").length;
+                const altas = lojaPend.filter(p=>p.prioridade==="alta").length;
+                const vencidas = lojaPend.filter(p=>p.status==="vencido").length;
+                return(
+                  <div key={loja.id} onClick={()=>setSelPendStore(loja)} style={{...S.card,cursor:"pointer",borderLeft:`3px solid ${criticas>0?"#dc2626":altas>0?"#f97316":"#d97706"}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:15}}>{loja.nome}</div>
+                        <div style={{fontSize:11,color:"#666",marginTop:2}}>{loja.cidade} · {loja.gerente}</div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:28,fontWeight:900,color:criticas>0?"#dc2626":altas>0?"#f97316":"#d97706"}}>{lojaPend.length}</div>
+                        <div style={{fontSize:10,color:"#666"}}>pendência{lojaPend.length!==1?"s":""}</div>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+                      {criticas>0&&<span style={S.bdg("#dc2626","#1c000022")}>🔴 {criticas} crítica{criticas!==1?"s":""}</span>}
+                      {altas>0&&<span style={S.bdg("#f97316","#1c060022")}>🟠 {altas} alta{altas!==1?"s":""}</span>}
+                      {vencidas>0&&<span style={S.bdg("#dc2626","#1c000022")}>⏰ {vencidas} vencida{vencidas!==1?"s":""}</span>}
+                    </div>
+                  </div>
+                );
+              });
+            }
+
+            // Store detail view — pendências da loja selecionada
+            const storePend = tipoFiltrado.filter(p=>p.loja_id===selPendStore.id);
+            const statusFiltrado = pendFilter==="todos" ? storePend : storePend.filter(p=>p.status===pendFilter);
+            return(
+              <div>
+                <button onClick={()=>setSelPendStore(null)} style={{background:"none",border:"none",color:"#f5c518",cursor:"pointer",fontSize:14,marginBottom:12,padding:0}}>← Voltar</button>
+                <div style={{...S.card,background:"#161200",border:"1px solid #2a2000",padding:12,marginBottom:12}}>
+                  <div style={{fontSize:14,fontWeight:700,color:"#f5c518"}}>{selPendStore.nome}</div>
+                  <div style={{fontSize:12,color:"#888"}}>{selPendStore.cidade} · {selPendStore.gerente}</div>
+                  <div style={{fontSize:12,color:"#f5c518",marginTop:4}}>{storePend.filter(p=>p.status!=="resolvido").length} pendência{storePend.filter(p=>p.status!=="resolvido").length!==1?"s":""} abertas</div>
+                </div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+                  {["todos","pendente","em andamento","vencido","resolvido"].map(f=><button key={f} style={S.fb(pendFilter===f)} onClick={()=>setPendFilter(f)}>{f}</button>)}
+                </div>
+                {statusFiltrado.length===0&&<div style={{textAlign:"center",color:"#555",padding:32}}>Nenhuma pendência com este status</div>}
+                {statusFiltrado.map(p=>(
+                  <div key={p.id} style={{...S.card,borderLeft:`3px solid ${pc(p.prioridade)}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                      <span style={S.bdg(pc(p.prioridade),`${pc(p.prioridade)}22`)}>{p.prioridade?.toUpperCase()}</span>
+                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <span style={S.bdg(psc(p.status),`${psc(p.status)}22`)}>{p.status?.toUpperCase()}</span>
+                        <button onClick={()=>setEditingPend({...p})} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:6,padding:"3px 8px",color:"#888",fontSize:11,cursor:"pointer"}}>✏️ Editar</button>
+                      </div>
+                    </div>
+                    <div style={{fontSize:14,fontWeight:600,marginBottom:6}}>{p.problema}</div>
+                    <div style={{fontSize:12,color:"#888"}}>📂 {p.categoria} · <span style={{color:p.tipo==="manutencao"?"#3b82f6":"#888"}}>{p.tipo==="manutencao"?"🔧 Manutenção":"🏪 Processo"}</span></div>
+                    <div style={{display:"flex",gap:16,marginTop:10,paddingTop:10,borderTop:"1px solid #1f1f1f",flexWrap:"wrap"}}>
+                      <div><div style={{fontSize:10,color:"#666"}}>RESPONSÁVEL</div><div style={{fontSize:12,fontWeight:600}}>{p.responsavel||"—"}</div></div>
+                      {p.prazo&&<div><div style={{fontSize:10,color:"#666"}}>PRAZO</div><div style={{fontSize:12,fontWeight:600,color:p.status==="vencido"?"#dc2626":"#f5f5f5"}}>{new Date(p.prazo).toLocaleDateString("pt-BR")}</div></div>}
+                      {p.data_conclusao&&<div><div style={{fontSize:10,color:"#666"}}>CONCLUÍDO</div><div style={{fontSize:12,fontWeight:600,color:"#16a34a"}}>{new Date(p.data_conclusao).toLocaleDateString("pt-BR")}</div></div>}
+                    </div>
+                    {p.obs_responsavel&&<div style={{fontSize:12,color:"#888",marginTop:8,fontStyle:"italic"}}>💬 "{p.obs_responsavel}"</div>}
+                  </div>
+                ))}
               </div>
-              <div style={{fontSize:14,fontWeight:600,marginBottom:6}}>{p.problema}</div>
-              <div style={{fontSize:12,color:"#888"}}>🏪 {p.loja_nome} · 📂 {p.categoria} · <span style={{color:p.tipo==="manutencao"?"#3b82f6":"#888"}}>{p.tipo==="manutencao"?"🔧 Manutenção":"🏪 Processo"}</span></div>
-              <div style={{display:"flex",gap:16,marginTop:10,paddingTop:10,borderTop:"1px solid #1f1f1f",flexWrap:"wrap"}}>
-                <div><div style={{fontSize:10,color:"#666"}}>RESPONSÁVEL</div><div style={{fontSize:12,fontWeight:600}}>{p.responsavel||"—"}</div></div>
-                {p.prazo&&<div><div style={{fontSize:10,color:"#666"}}>PRAZO</div><div style={{fontSize:12,fontWeight:600,color:p.status==="vencido"?"#dc2626":"#f5f5f5"}}>{new Date(p.prazo).toLocaleDateString("pt-BR")}</div></div>}
-                {p.data_conclusao&&<div><div style={{fontSize:10,color:"#666"}}>CONCLUÍDO</div><div style={{fontSize:12,fontWeight:600,color:"#16a34a"}}>{new Date(p.data_conclusao).toLocaleDateString("pt-BR")}</div></div>}
-              </div>
-              {p.obs_responsavel&&<div style={{fontSize:12,color:"#888",marginTop:8,fontStyle:"italic"}}>💬 "{p.obs_responsavel}"</div>}
-            </div>
-          ));
+            );
           })()}
-          {uPend.length===0&&<div style={{textAlign:"center",color:"#555",padding:40}}>Nenhuma pendência encontrada</div>}
           {FOOTER}
         </div>
       )}

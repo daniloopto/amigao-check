@@ -101,6 +101,11 @@ export default function App() {
 
   // Lojas
   const [selStore, setSelStore] = useState(null); const [histFilter, setHistFilter] = useState("30"); const [histFrom, setHistFrom] = useState(""); const [histTo, setHistTo] = useState(today);
+  const [viewingVisit, setViewingVisit] = useState(null);
+  const [visitAnswers, setVisitAnswers] = useState([]);
+  const [loadingAnswers, setLoadingAnswers] = useState(false);
+  const [editingVisitMode, setEditingVisitMode] = useState(false);
+  const [visitEditForm, setVisitEditForm] = useState({});
 
   const uLojas = user ? (user.lojas_ids ? lojas.filter(l=>user.lojas_ids.includes(l.id)) : lojas) : [];
   const uVisitas = user ? (user.lojas_ids ? visitas.filter(v=>user.lojas_ids.includes(v.loja_id)) : visitas) : [];
@@ -114,6 +119,23 @@ export default function App() {
   ) : [];
 
   const calcScore = () => { const v=Object.values(answers).filter(x=>["ok","parcial","nao","na"].includes(x)); const a=v.filter(x=>x!=="na"); if(!a.length) return 0; return Math.round(a.reduce((s,x)=>s+(x==="ok"?1:x==="parcial"?0.5:0),0)/a.length*100); };
+
+  const openVisitDetail = async (visit) => {
+    setViewingVisit(visit);
+    setVisitEditForm({ nota_final:visit.nota_final, status_loja:visit.status_loja, obs_geral:visit.obs_geral||"", vendas:visit.vendas||0, atendimentos:visit.atendimentos||0, vendas_realizadas:visit.vendas_realizadas||0 });
+    setEditingVisitMode(false);
+    setLoadingAnswers(true);
+    const res = await sb(`respostas_checklist?visita_id=eq.${visit.id}&select=*&order=categoria_id,item_idx`);
+    setVisitAnswers(res || []);
+    setLoadingAnswers(false);
+  };
+
+  const saveVisitEdit = async () => {
+    await sb(`visitas?id=eq.${viewingVisit.id}`, { method:"PATCH", body:JSON.stringify({ nota_final:parseInt(visitEditForm.nota_final)||0, status_loja:visitEditForm.status_loja, obs_geral:visitEditForm.obs_geral, vendas:parseFloat(visitEditForm.vendas)||0, atendimentos:parseInt(visitEditForm.atendimentos)||0, vendas_realizadas:parseInt(visitEditForm.vendas_realizadas)||0 }) });
+    setVisitas(prev=>prev.map(v=>v.id===viewingVisit.id?{...v,...visitEditForm}:v));
+    setViewingVisit(prev=>({...prev,...visitEditForm}));
+    setEditingVisitMode(false);
+  };
 
   const loadData = useCallback(async (currentUser) => {
     if(!currentUser) return;
@@ -1012,9 +1034,15 @@ export default function App() {
           {user?.role!=="manutencao"&&(
             <>
             <div style={{display:"flex",gap:0,marginBottom:10,background:"#161616",borderRadius:10,padding:4}}>
-              {[["processo","🏪 Processos da Loja"],["manutencao","🔧 Manutenção"]].map(([v,l])=>(
-                <button key={v} onClick={()=>setPendTipo(v)} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",background:pendTipo===v?"#f5c518":"transparent",color:pendTipo===v?"#000":"#888",cursor:"pointer",fontWeight:700,fontSize:13,transition:"all 0.2s"}}>{l}</button>
-              ))}
+              {[["processo","🏪 Processos"],["manutencao","🔧 Manutenção"]].map(([v,l])=>{
+                const cnt = uPend.filter(p=>p.tipo===v&&p.status!=="resolvido").length;
+                return(
+                  <button key={v} onClick={()=>setPendTipo(v)} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",background:pendTipo===v?"#f5c518":"transparent",color:pendTipo===v?"#000":"#888",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                    {l}
+                    {cnt>0&&<span style={{background:pendTipo===v?"#000":"#dc2626",color:"#fff",borderRadius:20,fontSize:11,fontWeight:900,minWidth:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"0 5px"}}>{cnt}</span>}
+                  </button>
+                );
+              })}
             </div>
             <button onClick={()=>setNewPend(true)} style={{...S.bp,marginBottom:14,background:"#1a1a1a",color:"#f5c518",border:"1px solid #f5c518"}}>➕ Nova Pendência</button>
             </>
@@ -1188,9 +1216,95 @@ export default function App() {
                     <div style={{textAlign:"right"}}><div style={{fontSize:26,fontWeight:900,color:sc(v.nota_final)}}>{v.nota_final}</div><span style={S.bdg(stc(v.status_loja),stb(v.status_loja))}>{v.status_loja?.toUpperCase()}</span></div>
                   </div>
                   {v.obs_geral&&<div style={{fontSize:12,color:"#888",marginTop:8,fontStyle:"italic"}}>"{v.obs_geral}"</div>}
+                  <button onClick={()=>openVisitDetail(v)} style={{marginTop:10,background:"#1a1a1a",border:"1px solid #333",borderRadius:8,padding:"6px 14px",color:"#f5c518",fontSize:12,cursor:"pointer",width:"100%"}}>📋 Ver respostas do checklist</button>
                 </div>
               ))}
             </>}
+
+            {/* Visit Detail Modal */}
+            {viewingVisit&&(
+              <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#000000ee",zIndex:200,display:"flex",alignItems:"flex-end"}}>
+                <div style={{background:"#111",borderRadius:"16px 16px 0 0",width:"100%",maxHeight:"92vh",overflow:"auto",padding:20}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                    <div>
+                      <div style={{fontSize:16,fontWeight:700,color:"#f5c518"}}>📋 Visita · {viewingVisit.loja_nome}</div>
+                      <div style={{fontSize:12,color:"#888"}}>{new Date(viewingVisit.data_visita).toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})} · {viewingVisit.supervisor_nome}</div>
+                    </div>
+                    <button onClick={()=>{setViewingVisit(null);setVisitAnswers([]);setEditingVisitMode(false);}} style={{background:"#222",border:"none",color:"#888",fontSize:18,cursor:"pointer",borderRadius:20,width:32,height:32}}>✕</button>
+                  </div>
+
+                  {/* Visit summary */}
+                  <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+                    {[["NOTA",viewingVisit.nota_final,sc(viewingVisit.nota_final)],["STATUS",viewingVisit.status_loja?.toUpperCase(),stc(viewingVisit.status_loja)],["TIPO",viewingVisit.tipo_visita,"#888"]].map(([k,v,c])=>(
+                      <div key={k} style={{background:"#0a0a0a",borderRadius:8,padding:"8px 12px",flex:1,textAlign:"center"}}>
+                        <div style={{fontSize:14,fontWeight:900,color:c}}>{v}</div>
+                        <div style={{fontSize:10,color:"#666"}}>{k}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Edit mode toggle */}
+                  <button onClick={()=>setEditingVisitMode(e=>!e)} style={{...S.bp,marginBottom:12,background:editingVisitMode?"#f5c518":"#1a1a1a",color:editingVisitMode?"#000":"#f5c518",border:"1px solid #f5c518"}}>
+                    {editingVisitMode?"❌ Cancelar Edição":"✏️ Editar Informações"}
+                  </button>
+
+                  {editingVisitMode&&(
+                    <div style={{...S.card,marginBottom:12}}>
+                      <label style={S.lbl}>Nota Final</label>
+                      <input style={S.inp} type="number" onWheel={e=>e.target.blur()} min="0" max="100" value={visitEditForm.nota_final} onChange={e=>setVisitEditForm({...visitEditForm,nota_final:e.target.value})} />
+                      <label style={S.lbl}>Status da Loja</label>
+                      <div style={{display:"flex",gap:6,marginBottom:10}}>
+                        {[["verde","🟢 Verde"],["amarelo","🟡 Amarelo"],["vermelho","🔴 Vermelho"]].map(([v,l])=>(
+                          <button key={v} onClick={()=>setVisitEditForm({...visitEditForm,status_loja:v})} style={{flex:1,padding:8,borderRadius:8,border:visitEditForm.status_loja===v?`2px solid ${stc(v)}`:"1px solid #333",background:visitEditForm.status_loja===v?stb(v):"#111",color:visitEditForm.status_loja===v?stc(v):"#888",cursor:"pointer",fontSize:12,fontWeight:700}}>{l}</button>
+                        ))}
+                      </div>
+                      <label style={S.lbl}>Vendas (R$)</label>
+                      <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={visitEditForm.vendas} onChange={e=>setVisitEditForm({...visitEditForm,vendas:e.target.value})} />
+                      <label style={S.lbl}>Atendimentos</label>
+                      <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={visitEditForm.atendimentos} onChange={e=>setVisitEditForm({...visitEditForm,atendimentos:e.target.value})} />
+                      <label style={S.lbl}>Vendas Realizadas</label>
+                      <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={visitEditForm.vendas_realizadas} onChange={e=>setVisitEditForm({...visitEditForm,vendas_realizadas:e.target.value})} />
+                      <label style={S.lbl}>Observações</label>
+                      <textarea style={{...S.inp,height:70,resize:"none"}} value={visitEditForm.obs_geral} onChange={e=>setVisitEditForm({...visitEditForm,obs_geral:e.target.value})} />
+                      <button style={S.bp} onClick={saveVisitEdit}>Salvar Alterações ✓</button>
+                    </div>
+                  )}
+
+                  {/* Checklist answers */}
+                  <div style={{fontSize:14,fontWeight:700,color:"#f5c518",marginBottom:12}}>Respostas do Checklist</div>
+                  {loadingAnswers&&<div style={{textAlign:"center",color:"#666",padding:20}}>Carregando respostas...</div>}
+                  {!loadingAnswers&&visitAnswers.length===0&&<div style={{textAlign:"center",color:"#555",padding:20}}>Nenhuma resposta registrada</div>}
+                  {!loadingAnswers&&(()=>{
+                    const cats = [...new Set(visitAnswers.map(a=>a.categoria_nome))];
+                    return cats.map(cat=>{
+                      const catAnswers = visitAnswers.filter(a=>a.categoria_nome===cat);
+                      const ok = catAnswers.filter(a=>a.resposta==="ok").length;
+                      const total = catAnswers.filter(a=>a.resposta!=="na").length;
+                      const score = total>0?Math.round(((ok+catAnswers.filter(a=>a.resposta==="parcial").length*0.5)/total)*100):null;
+                      return(
+                        <div key={cat} style={{...S.card,marginBottom:8}}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+                            <div style={{fontWeight:700,fontSize:14}}>{cat}</div>
+                            {score!==null&&<span style={{fontWeight:900,color:sc(score),fontSize:16}}>{score}</span>}
+                          </div>
+                          {catAnswers.map((a,i)=>(
+                            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"6px 0",borderTop:"1px solid #1f1f1f"}}>
+                              <div style={{fontSize:12,color:"#ccc",flex:1,paddingRight:8}}>{a.item_texto}</div>
+                              <div style={{textAlign:"right",flexShrink:0}}>
+                                <span style={{fontSize:11,fontWeight:700,color:a.resposta==="ok"?"#16a34a":a.resposta==="parcial"?"#d97706":a.resposta==="nao"?"#dc2626":"#555"}}>
+                                  {a.resposta==="ok"?"✅ OK":a.resposta==="parcial"?"⚡ Parcial":a.resposta==="nao"?"❌ Não OK":"N/A"}
+                                </span>
+                                {a.observacao&&<div style={{fontSize:10,color:"#888",marginTop:2}}>{a.observacao}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            )}
 
             <button style={S.bp} onClick={()=>{setClLoja(selStore);setPage("visita");setSelStore(null);setClStep(0);}}>✅ Nova Visita</button>
             <div style={{height:8}}/>

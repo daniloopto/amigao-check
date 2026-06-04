@@ -107,6 +107,8 @@ export default function App() {
   const [loadingAnswers, setLoadingAnswers] = useState(false);
   const [editingVisitMode, setEditingVisitMode] = useState(false);
   const [visitEditForm, setVisitEditForm] = useState({});
+  const [editingInd, setEditingInd] = useState(null);
+  const [indEditForm, setIndEditForm] = useState({});
 
   const uLojas = user ? (user.lojas_ids ? lojas.filter(l=>user.lojas_ids.includes(l.id)) : lojas) : [];
   const uVisitas = user ? (user.lojas_ids ? visitas.filter(v=>user.lojas_ids.includes(v.loja_id)) : visitas) : [];
@@ -136,6 +138,23 @@ export default function App() {
     setVisitas(prev=>prev.map(v=>v.id===viewingVisit.id?{...v,...visitEditForm}:v));
     setViewingVisit(prev=>({...prev,...visitEditForm}));
     setEditingVisitMode(false);
+  };
+
+  const saveIndEdit = async () => {
+    const v=parseFloat(indEditForm.vendas)||0; const rec=parseFloat(indEditForm.receita)||0;
+    const a=parseInt(indEditForm.atendimentos)||0; const vr=parseInt(indEditForm.vendas_realizadas)||0;
+    const conv=a>0?Math.round((vr/a)*100):0; const ticket=vr>0?Math.round(v/vr):0;
+    const percReceita=v>0?Math.round((rec/v)*100):0;
+    const payload = { vendas:v, receita:rec, perc_receita:percReceita, atendimentos:a, vendas_realizadas:vr, conversao:conv, ticket_medio:ticket, obs:indEditForm.obs||"", data:indEditForm.data };
+    await sb(`indicadores?id=eq.${editingInd.id}`, { method:"PATCH", body:JSON.stringify(payload) });
+    setIndicadores(prev=>prev.map(i=>i.id===editingInd.id?{...i,...payload}:i));
+    setEditingInd(null);
+  };
+
+  const deleteInd = async (ind) => {
+    if(!window.confirm(`Excluir o lançamento de ${new Date(ind.data).toLocaleDateString("pt-BR")}?`)) return;
+    await sb(`indicadores?id=eq.${ind.id}`, { method:"DELETE" });
+    setIndicadores(prev=>prev.filter(i=>i.id!==ind.id));
   };
 
   const deleteVisit = async () => {
@@ -1247,11 +1266,54 @@ export default function App() {
             {/* Indicadores history */}
             {storeInd.length>0&&<>
               <div style={S.ttl}>Indicadores ({storeInd.length})</div>
+
+              {/* Edit Indicador Modal */}
+              {editingInd&&(
+                <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#000000ee",zIndex:200,display:"flex",alignItems:"flex-end"}}>
+                  <div style={{background:"#111",borderRadius:"16px 16px 0 0",width:"100%",maxHeight:"85vh",overflow:"auto",padding:20}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                      <div style={{fontSize:16,fontWeight:700,color:"#f5c518"}}>✏️ Editar Indicadores</div>
+                      <button onClick={()=>setEditingInd(null)} style={{background:"#222",border:"none",color:"#888",fontSize:18,cursor:"pointer",borderRadius:20,width:32,height:32}}>✕</button>
+                    </div>
+                    <label style={S.lbl}>Data de Referência</label>
+                    <input style={{...S.inp,colorScheme:"dark"}} type="date" value={indEditForm.data} onChange={e=>setIndEditForm({...indEditForm,data:e.target.value})} />
+                    <label style={S.lbl}>Vendas do Dia (R$)</label>
+                    <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={indEditForm.vendas} onChange={e=>setIndEditForm({...indEditForm,vendas:e.target.value})} />
+                    <label style={S.lbl}>Receita do Dia (R$)</label>
+                    <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={indEditForm.receita} onChange={e=>setIndEditForm({...indEditForm,receita:e.target.value})} />
+                    <label style={S.lbl}>Atendimentos</label>
+                    <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={indEditForm.atendimentos} onChange={e=>setIndEditForm({...indEditForm,atendimentos:e.target.value})} />
+                    <label style={S.lbl}>Vendas Realizadas</label>
+                    <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={indEditForm.vendas_realizadas} onChange={e=>setIndEditForm({...indEditForm,vendas_realizadas:e.target.value})} />
+                    <label style={S.lbl}>Observações</label>
+                    <textarea style={{...S.inp,height:60,resize:"none"}} value={indEditForm.obs||""} onChange={e=>setIndEditForm({...indEditForm,obs:e.target.value})} />
+                    {/* Preview calc */}
+                    {indEditForm.vendas&&indEditForm.atendimentos&&(
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                        {[["CONVERSÃO",`${parseInt(indEditForm.atendimentos)>0?Math.round((parseInt(indEditForm.vendas_realizadas)/parseInt(indEditForm.atendimentos))*100):0}%`,"#a855f7"],["TICKET",`R$ ${parseInt(indEditForm.vendas_realizadas)>0?Math.round(parseFloat(indEditForm.vendas)/parseInt(indEditForm.vendas_realizadas)):0}`,"#16a34a"]].map(([k,v,c])=>(
+                          <div key={k} style={{background:"#0a0a0a",borderRadius:8,padding:"8px 12px",textAlign:"center"}}>
+                            <div style={{fontSize:16,fontWeight:900,color:c}}>{v}</div>
+                            <div style={{fontSize:10,color:"#666"}}>{k}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button style={S.bp} onClick={saveIndEdit}>Salvar Alterações ✓</button>
+                  </div>
+                </div>
+              )}
+
               {storeInd.map(i=>(
                 <div key={i.id} style={{...S.card,borderLeft:`3px solid ${i.vendas>=i.meta_dia?"#16a34a":"#dc2626"}`}}>
-                  <div style={{display:"flex",justifyContent:"space-between"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div style={{fontSize:13,fontWeight:700}}>{new Date(i.data).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"})}</div>
-                    <span style={S.bdg(i.vendas>=i.meta_dia?"#16a34a":"#dc2626",i.vendas>=i.meta_dia?"#052e16":"#1c0000")}>{Math.round((i.vendas/i.meta_dia)*100)}% meta</span>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <span style={S.bdg(i.vendas>=i.meta_dia?"#16a34a":"#dc2626",i.vendas>=i.meta_dia?"#052e16":"#1c0000")}>{Math.round((i.vendas/(i.meta_dia||1))*100)}% meta</span>
+                      {user?.role==="diretor"&&<>
+                        <button onClick={()=>{setEditingInd(i);setIndEditForm({data:i.data,vendas:i.vendas,receita:i.receita||0,atendimentos:i.atendimentos,vendas_realizadas:i.vendas_realizadas,obs:i.obs||""});}} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:6,padding:"3px 7px",color:"#f5c518",fontSize:11,cursor:"pointer"}}>✏️</button>
+                        <button onClick={()=>deleteInd(i)} style={{background:"#1c0000",border:"1px solid #333",borderRadius:6,padding:"3px 7px",color:"#dc2626",fontSize:11,cursor:"pointer"}}>🗑️</button>
+                      </>}
+                    </div>
                   </div>
                   <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
                     <div><div style={{fontSize:10,color:"#666"}}>VENDAS</div><div style={{fontSize:12,fontWeight:700,color:"#3b82f6"}}>R$ {i.vendas.toLocaleString("pt-BR")}</div></div>

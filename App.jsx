@@ -60,10 +60,12 @@ const metaPeriodo = (metaMensal, dias, du) => Math.round((metaMensal/(du||26))*d
 export default function App() {
   const [page, setPage] = useState("login");
   const [user, setUser] = useState(null);
+  const [lojas, setLojas] = useState([]);
   const [visitas, setVisitas] = useState([]);
   const [indicadores, setIndicadores] = useState([]);
   const [pendencias, setPendencias] = useState([]);
   const [metas, setMetas] = useState({});
+  const [loading, setLoading] = useState(false);
   const mesAtual = today.slice(0,7); // "YYYY-MM"
   const [diasUteisPorMes, setDiasUteisPorMes] = useState({ [mesAtual]: 26 });
   const diasUteis = diasUteisPorMes[mesAtual] || 26;

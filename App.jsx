@@ -984,6 +984,7 @@ export default function App() {
 
             {/* Single store → line chart evolution */}
             {dashLoja!=="todas" && singleStoreData ? (
+              <>
               <div style={{...S.card,padding:"12px 4px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,paddingLeft:12,paddingRight:12}}>
                   <div style={{fontSize:13,fontWeight:700,color:"#f5c518"}}>Evolução · {dashLoja}</div>
@@ -1050,6 +1051,7 @@ export default function App() {
                   </div>
                 );
               })()}
+              </>
             ) : chartData.length>0 ? (
               /* All stores → bar chart by store for selected period */
               <div style={{...S.card,padding:"12px 4px"}}>

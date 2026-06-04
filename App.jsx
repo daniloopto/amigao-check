@@ -67,6 +67,8 @@ export default function App() {
   const [pendencias, setPendencias] = useState([]);
   const [metas, setMetas] = useState({});
   const [loading, setLoading] = useState(false);
+  const [vendedores, setVendedores] = useState([]);
+  const [indVendedor, setIndVendedor] = useState([]);
   const mesAtual = today.slice(0,7); // "YYYY-MM"
   const [diasUteisPorMes, setDiasUteisPorMes] = useState({ [mesAtual]: 26 });
   const diasUteis = diasUteisPorMes[mesAtual] || 26;
@@ -77,6 +79,13 @@ export default function App() {
 
   // Settings
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsLoja, setSettingsLoja] = useState(null);
+  const [settingsLojaForm, setSettingsLojaForm] = useState({});
+  const [newVendedor, setNewVendedor] = useState("");
+  // Gerente indicators
+  const [gerenteIndDate, setGerenteIndDate] = useState(getToday());
+  const [gerenteIndForm, setGerenteIndForm] = useState({});
+  const [gerenteIndDone, setGerenteIndDone] = useState(false);
 
   // Dashboard
   const [dashLoja, setDashLoja] = useState("todas"); const [dashChart, setDashChart] = useState("meta");
@@ -112,6 +121,8 @@ export default function App() {
   const [indEditForm, setIndEditForm] = useState({});
 
   const uLojas = user ? (user.lojas_ids ? lojas.filter(l=>user.lojas_ids.includes(l.id)) : lojas) : [];
+  const uVendedores = user ? (user.lojas_ids ? vendedores.filter(v=>user.lojas_ids.includes(v.loja_id)) : vendedores) : [];
+  const uIndV = user ? (user.lojas_ids ? indVendedor.filter(i=>user.lojas_ids.includes(i.loja_id)) : indVendedor) : [];
   const uVisitas = user ? (user.lojas_ids ? visitas.filter(v=>user.lojas_ids.includes(v.loja_id)) : visitas) : [];
   const uInd = user ? (user.lojas_ids ? indicadores.filter(i=>user.lojas_ids.includes(i.loja_id)) : indicadores) : [];
   const uPend = user ? (
@@ -158,6 +169,37 @@ export default function App() {
     setIndicadores(prev=>prev.filter(i=>i.id!==ind.id));
   };
 
+  const saveGerenteInd = async () => {
+    const lojaId = uLojas[0]?.id;
+    if(!lojaId) return;
+    const entries = Object.entries(gerenteIndForm).filter(([k]) => k.match(/^\d+$/));
+    const toSave = entries.map(([vendId, vals]) => {
+      const a = parseInt(vals.atendimentos)||0; const vr = parseInt(vals.vendas_realizadas)||0; const v = parseFloat(vals.vendas)||0;
+      return { vendedor_id:parseInt(vendId), vendedor_nome:vendedores.find(vd=>vd.id===parseInt(vendId))?.nome||"", loja_id:lojaId, loja_nome:uLojas[0]?.nome||"", usuario_id:user.id, gerente_nome:user.nome, data:gerenteIndDate, vendas:v, atendimentos:a, vendas_realizadas:vr, conversao:a>0?Math.round((vr/a)*100):0, ticket_medio:vr>0?Math.round(v/vr):0, obs:vals.obs||"" };
+    }).filter(e => e.vendas>0||e.atendimentos>0);
+    if(!toSave.length) return alert("Preencha os dados de pelo menos um vendedor.");
+    const result = await sb("indicadores_vendedor", { method:"POST", body:JSON.stringify(toSave) });
+    if(result) { setIndVendedor(prev=>[...(Array.isArray(result)?result:[result]),...prev]); setGerenteIndDone(true); setGerenteIndForm({}); }
+  };
+
+  const saveSettingsLoja = async () => {
+    await sb(`lojas?id=eq.${settingsLoja.id}`, { method:"PATCH", body:JSON.stringify({ gerente:settingsLojaForm.gerente, meta_mensal:parseInt(settingsLojaForm.meta_mensal)||0 }) });
+    setLojas(prev=>prev.map(l=>l.id===settingsLoja.id?{...l,...settingsLojaForm}:l));
+    setMetas(prev=>({...prev,[settingsLoja.id]:parseInt(settingsLojaForm.meta_mensal)||0}));
+    setSettingsLoja(null);
+  };
+
+  const addVendedor = async () => {
+    if(!newVendedor.trim()) return;
+    const result = await sb("vendedores", { method:"POST", body:JSON.stringify({ nome:newVendedor.trim(), loja_id:settingsLoja.id, loja_nome:settingsLoja.nome, ativo:true }) });
+    if(result) { const v = Array.isArray(result)?result[0]:result; setVendedores(prev=>[...prev,v]); setNewVendedor(""); }
+  };
+
+  const toggleVendedor = async (v) => {
+    await sb(`vendedores?id=eq.${v.id}`, { method:"PATCH", body:JSON.stringify({ ativo:!v.ativo }) });
+    setVendedores(prev=>prev.map(vd=>vd.id===v.id?{...vd,ativo:!vd.ativo}:vd));
+  };
+
   const deleteVisit = async () => {
     if(!window.confirm(`Excluir a visita de ${new Date(viewingVisit.data_visita).toLocaleDateString("pt-BR")} da loja ${viewingVisit.loja_nome}? Esta ação não pode ser desfeita.`)) return;
     await sb(`respostas_checklist?visita_id=eq.${viewingVisit.id}`, { method:"DELETE" });
@@ -171,18 +213,22 @@ export default function App() {
     if(!currentUser) return;
     setLoading(true);
     try {
-      const [lj, vis, ind, pend, du] = await Promise.all([
+      const [lj, vis, ind, pend, du, vend, indV] = await Promise.all([
         sb("lojas?select=*&order=nome"),
         sb("visitas?select=*&order=data_visita.desc"),
         sb("indicadores?select=*&order=data.desc"),
         sb("pendencias?select=*&order=created_at.desc"),
         sb("dias_uteis?select=*"),
+        sb("vendedores?select=*&order=nome"),
+        sb("indicadores_vendedor?select=*&order=data.desc"),
       ]);
       if(lj) { setLojas(lj); setMetas(Object.fromEntries(lj.map(l=>[l.id, l.meta_mensal||0]))); }
       if(vis) setVisitas(vis);
       if(ind) setIndicadores(ind);
       if(pend) setPendencias(pend);
       if(du) { const duObj = {}; du.forEach(d => { duObj[d.ano_mes] = d.dias; }); setDiasUteisPorMes(prev=>({...prev,...duObj})); }
+      if(vend) setVendedores(vend);
+      if(indV) setIndVendedor(indV);
     } catch(e) { console.error("Erro ao carregar dados:", e); }
     setLoading(false);
   }, []);
@@ -194,7 +240,7 @@ export default function App() {
     if(users && users.length > 0) {
       const u = users[0];
       setUser(u);
-      setPage(u.role==="manutencao" ? "pendencias" : "dashboard");
+      setPage(u.role==="manutencao" ? "pendencias" : u.role==="gerente" ? "gerente_ind" : "dashboard");
       setLoginErr("");
       loadData(u);
     } else {
@@ -254,7 +300,7 @@ export default function App() {
   };
 
   const allNavItems = [{id:"dashboard",label:"Dashboard",icon:"📊"},{id:"indicadores",label:"Indicadores",icon:"📈"},{id:"ranking",label:"Ranking",icon:"🏆"},{id:"visita",label:"Visita",icon:"✅"},{id:"pendencias",label:"Pendências",icon:"⚠️"},{id:"lojas",label:"Lojas",icon:"🏪"}];
-  const navItems = user?.role==="manutencao" ? [{id:"pendencias",label:"Pendências",icon:"⚠️"}] : allNavItems;
+  const navItems = user?.role==="manutencao" ? [{id:"pendencias",label:"Pendências",icon:"⚠️"}] : user?.role==="gerente" ? [{id:"gerente_ind",label:"Indicadores",icon:"📈"}] : allNavItems;
   const FOOTER = <div style={{textAlign:"center",padding:"20px 0 8px",borderTop:"1px solid #1a1a1a",marginTop:16}}><div style={{fontSize:12,color:"#2a2a2a",fontWeight:700,letterSpacing:2}}>👓 AMIGÃO CHECK</div><div style={{fontSize:10,color:"#222",letterSpacing:1,marginTop:2}}>SUPERVISÃO OPERACIONAL · ÓTICAS AMIGÃO</div></div>;
 
   // ── LOGIN ─────────────────────────────────────────────────────
@@ -544,6 +590,100 @@ export default function App() {
   }
 
   // ── MAIN PAGES ────────────────────────────────────────────────
+  // ── GERENTE PAGE ─────────────────────────────────────────────
+  if(page==="gerente_ind") {
+    const lojaGerente = uLojas[0];
+    const lojaVendedores = vendedores.filter(v=>v.loja_id===lojaGerente?.id&&v.ativo);
+    const jaLancou = lojaVendedores.some(v=>uIndV.some(i=>i.vendedor_id===v.id&&i.data===gerenteIndDate));
+    return(
+      <div style={S.app}>
+        <style>{`*{box-sizing:border-box}`}</style>
+        <div style={S.hdr}>
+          <div style={{background:"#f5c518",borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>👓</div>
+          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:900,color:"#f5c518"}}>INDICADORES</div><div style={{fontSize:10,color:"#666"}}>{lojaGerente?.nome||""} · {user?.nome}</div></div>
+          <button onClick={()=>{setUser(null);setPage("login");}} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:20,padding:"4px 8px",color:"#888",fontSize:11,cursor:"pointer"}}>Sair</button>
+        </div>
+
+        <div style={{padding:16}}>
+          {gerenteIndDone&&(
+            <div style={{...S.card,background:"#052e16",border:"1px solid #16a34a",textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:24,marginBottom:4}}>✅</div>
+              <div style={{fontSize:15,fontWeight:700,color:"#16a34a"}}>Indicadores salvos!</div>
+              <button style={{...S.bp,marginTop:10,background:"#1a1a1a",color:"#f5c518",border:"1px solid #f5c518"}} onClick={()=>{setGerenteIndDone(false);setGerenteIndDate(getToday());}}>Lançar Outro Dia</button>
+            </div>
+          )}
+
+          <div style={S.card}>
+            <label style={S.lbl}>Data de Referência</label>
+            <input style={{...S.inp,colorScheme:"dark"}} type="date" value={gerenteIndDate} onChange={e=>setGerenteIndDate(e.target.value)} />
+          </div>
+
+          {lojaVendedores.length===0&&(
+            <div style={{...S.card,textAlign:"center",color:"#666",padding:24}}>Nenhum vendedor cadastrado. Solicite ao diretor que cadastre os vendedores.</div>
+          )}
+
+          {lojaVendedores.map(v=>{
+            const form = gerenteIndForm[v.id]||{};
+            const a=parseInt(form.atendimentos)||0; const vr=parseInt(form.vendas_realizadas)||0; const venda=parseFloat(form.vendas)||0;
+            const conv=a>0?Math.round((vr/a)*100):0; const ticket=vr>0?Math.round(venda/vr):0;
+            return(
+              <div key={v.id} style={{...S.card,marginBottom:10}}>
+                <div style={{fontSize:15,fontWeight:700,color:"#f5c518",marginBottom:12}}>👤 {v.nome}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                  <div>
+                    <label style={S.lbl}>Vendas (R$)</label>
+                    <input style={{...S.inp,marginBottom:0}} type="number" onWheel={e=>e.target.blur()} placeholder="0" value={form.vendas||""} onChange={e=>setGerenteIndForm(prev=>({...prev,[v.id]:{...form,vendas:e.target.value}}))} />
+                  </div>
+                  <div>
+                    <label style={S.lbl}>Atendimentos</label>
+                    <input style={{...S.inp,marginBottom:0}} type="number" onWheel={e=>e.target.blur()} placeholder="0" value={form.atendimentos||""} onChange={e=>setGerenteIndForm(prev=>({...prev,[v.id]:{...form,atendimentos:e.target.value}}))} />
+                  </div>
+                  <div>
+                    <label style={S.lbl}>Vendas Realizadas</label>
+                    <input style={{...S.inp,marginBottom:0}} type="number" onWheel={e=>e.target.blur()} placeholder="0" value={form.vendas_realizadas||""} onChange={e=>setGerenteIndForm(prev=>({...prev,[v.id]:{...form,vendas_realizadas:e.target.value}}))} />
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+                    {(venda>0||a>0)&&(
+                      <div style={{background:"#0a0a0a",borderRadius:8,padding:"6px 10px",textAlign:"center"}}>
+                        <div style={{fontSize:15,fontWeight:900,color:"#a855f7"}}>{conv}%</div>
+                        <div style={{fontSize:9,color:"#666"}}>CONVERSÃO</div>
+                        <div style={{fontSize:13,fontWeight:700,color:"#16a34a",marginTop:2}}>R$ {ticket}</div>
+                        <div style={{fontSize:9,color:"#666"}}>TICKET</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {lojaVendedores.length>0&&!gerenteIndDone&&(
+            <button style={S.bp} onClick={saveGerenteInd}>Salvar Indicadores ✓</button>
+          )}
+
+          {/* Histórico recente */}
+          {uIndV.filter(i=>i.data===gerenteIndDate).length>0&&(
+            <div style={{marginTop:16}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#888",marginBottom:8}}>JÁ LANÇADO HOJE</div>
+              {uIndV.filter(i=>i.loja_id===lojaGerente?.id&&i.data===gerenteIndDate).map(i=>(
+                <div key={i.id} style={{...S.card,padding:12,display:"flex",justifyContent:"space-between"}}>
+                  <div style={{fontSize:13,fontWeight:700}}>{i.vendedor_nome}</div>
+                  <div style={{display:"flex",gap:12,fontSize:11}}>
+                    <span style={{color:"#3b82f6"}}>R$ {i.vendas}</span>
+                    <span style={{color:"#a855f7"}}>{i.conversao}%</span>
+                    <span style={{color:"#16a34a"}}>R$ {i.ticket_medio}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {FOOTER}
+        </div>
+        <nav style={S.nav}>{navItems.map(n=><button key={n.id} style={S.nb(true)}><span style={{fontSize:16}}>{n.icon}</span><span>{n.label}</span></button>)}</nav>
+      </div>
+    );
+  }
+
   const avgNota = uVisitas.length?Math.round(uVisitas.reduce((a,b)=>a+(b.nota_final||0),0)/uVisitas.length):0;
 
   // Dashboard chart data
@@ -648,64 +788,110 @@ export default function App() {
       {/* SETTINGS MODAL */}
       {showSettings&&(
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#000000cc",zIndex:200,display:"flex",alignItems:"flex-end"}}>
-          <div style={{background:"#111",borderRadius:"16px 16px 0 0",width:"100%",maxHeight:"85vh",overflow:"auto",padding:20}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-              <div style={{fontSize:17,fontWeight:700,color:"#f5c518"}}>⚙️ Configurações</div>
-              <button onClick={()=>setShowSettings(false)} style={{background:"#222",border:"none",color:"#888",fontSize:18,cursor:"pointer",borderRadius:20,width:32,height:32}}>✕</button>
-            </div>
+          <div style={{background:"#111",borderRadius:"16px 16px 0 0",width:"100%",maxHeight:"90vh",overflow:"auto",padding:20}}>
 
-            {/* Dias úteis */}
-            <div style={{background:"#0a0a0a",borderRadius:12,padding:14,marginBottom:20}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#f5c518",marginBottom:2}}>📅 Dias Úteis por Mês</div>
-              <div style={{fontSize:12,color:"#888",marginBottom:12}}>Configure os dias úteis de cada mês considerando feriados. Afeta apenas o mês configurado.</div>
-              {[0,1,2].map(offset=>{
-                const d=new Date(); d.setMonth(d.getMonth()+offset);
-                const ym=d.toISOString().slice(0,7);
-                const nomeMes=d.toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
-                const du=diasUteisPorMes[ym]||26;
-                return(
-                  <div key={ym} style={{marginBottom:12,padding:12,background:"#111",borderRadius:10,border:offset===0?"1px solid #f5c51833":"1px solid #1f1f1f"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                      <div>
-                        <div style={{fontSize:13,fontWeight:700,color:offset===0?"#f5c518":"#f5f5f5",textTransform:"capitalize"}}>{nomeMes}</div>
-                        {offset===0&&<div style={{fontSize:10,color:"#f5c518",letterSpacing:1}}>MÊS VIGENTE</div>}
-                      </div>
-                      <div style={{fontSize:22,fontWeight:900,color:offset===0?"#f5c518":"#888"}}>{du} <span style={{fontSize:11,color:"#555"}}>dias</span></div>
-                    </div>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <button onClick={()=>setDiasUteisPorMes(prev=>({...prev,[ym]:Math.max(1,(prev[ym]||26)-1)}))} style={{background:"#222",border:"1px solid #333",borderRadius:8,width:34,height:34,color:"#f5f5f5",fontSize:18,cursor:"pointer",fontWeight:700,flexShrink:0}}>−</button>
-                      <div style={{display:"flex",gap:4,flex:1,flexWrap:"wrap"}}>
-                        {[18,19,20,21,22,23,24,25,26].map(n=>(
-                          <button key={n} onClick={()=>setDiasUteisPorMes(prev=>({...prev,[ym]:n}))} style={{padding:"3px 7px",borderRadius:16,border:du===n?"1px solid #f5c518":"1px solid #222",background:du===n?"#1a1200":"#0a0a0a",color:du===n?"#f5c518":"#555",fontSize:11,cursor:"pointer"}}>{n}</button>
-                        ))}
-                      </div>
-                      <button onClick={()=>setDiasUteisPorMes(prev=>({...prev,[ym]:Math.min(31,(prev[ym]||26)+1)}))} style={{background:"#222",border:"1px solid #333",borderRadius:8,width:34,height:34,color:"#f5f5f5",fontSize:18,cursor:"pointer",fontWeight:700,flexShrink:0}}>+</button>
-                    </div>
+            {/* Store detail view */}
+            {settingsLoja ? (
+              <>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div>
+                    <button onClick={()=>setSettingsLoja(null)} style={{background:"none",border:"none",color:"#f5c518",cursor:"pointer",fontSize:13,padding:0,marginBottom:4}}>← Voltar</button>
+                    <div style={{fontSize:16,fontWeight:700,color:"#f5c518"}}>🏪 {settingsLoja.nome}</div>
                   </div>
-                );
-              })}
-
-            </div>
-
-            <div style={{fontSize:13,fontWeight:700,color:"#f5c518",marginBottom:4}}>💰 Metas Mensais</div>
-            <div style={{fontSize:12,color:"#888",marginBottom:14}}>Meta diária do mês vigente = meta mensal ÷ {diasUteis} dias úteis.</div>
-            {uLojas.map(l=>(
-              <div key={l.id} style={{marginBottom:14}}>
-                <div style={{fontSize:13,fontWeight:600,color:"#f5f5f5",marginBottom:2}}>{l.nome} <span style={{color:"#666",fontSize:11}}>· Meta diária: R$ {Math.round(metas[l.id]/diasUteis).toLocaleString("pt-BR")}</span></div>
-                <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                  <input type="number" onWheel={e=>e.target.blur()} style={{...S.inp,marginBottom:0,flex:1}} value={metas[l.id]} onChange={e=>setMetas({...metas,[l.id]:parseInt(e.target.value)||0})} />
-                  <span style={{fontSize:12,color:"#666"}}>R$/mês</span>
+                  <button onClick={()=>setShowSettings(false)} style={{background:"#222",border:"none",color:"#888",fontSize:18,cursor:"pointer",borderRadius:20,width:32,height:32}}>✕</button>
                 </div>
-              </div>
-            ))}
-            <button style={{...S.bp,marginTop:8}} onClick={async()=>{
-              // Save metas to lojas table
-              await Promise.all(uLojas.map(l=>sb(`lojas?id=eq.${l.id}`,{method:"PATCH",body:JSON.stringify({meta_mensal:metas[l.id]})})));
-              // Save dias uteis
-              const duEntries = Object.entries(diasUteisPorMes).map(([ano_mes,dias])=>({ano_mes,dias}));
-              if(duEntries.length) await sb("dias_uteis",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify(duEntries)});
-              setShowSettings(false);
-            }}>Salvar ✓</button>
+
+                {/* Gerente and meta */}
+                <div style={{background:"#0a0a0a",borderRadius:12,padding:14,marginBottom:16}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#f5c518",marginBottom:12}}>📋 Dados da Loja</div>
+                  <label style={S.lbl}>Nome do Gerente</label>
+                  <input style={S.inp} placeholder="Nome do gerente" value={settingsLojaForm.gerente||""} onChange={e=>setSettingsLojaForm({...settingsLojaForm,gerente:e.target.value})} />
+                  <label style={S.lbl}>Meta Mensal (R$)</label>
+                  <input style={S.inp} type="number" onWheel={e=>e.target.blur()} value={settingsLojaForm.meta_mensal||0} onChange={e=>setSettingsLojaForm({...settingsLojaForm,meta_mensal:e.target.value})} />
+                  <div style={{fontSize:11,color:"#666",marginBottom:8}}>Meta diária: R$ {Math.round((parseInt(settingsLojaForm.meta_mensal)||0)/diasUteis).toLocaleString("pt-BR")}</div>
+                  <button style={S.bp} onClick={saveSettingsLoja}>Salvar Dados ✓</button>
+                </div>
+
+                {/* Vendedores */}
+                <div style={{background:"#0a0a0a",borderRadius:12,padding:14}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#f5c518",marginBottom:12}}>👥 Vendedores</div>
+                  {vendedores.filter(v=>v.loja_id===settingsLoja.id).map(v=>(
+                    <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #1a1a1a"}}>
+                      <div style={{fontSize:14,color:v.ativo?"#f5f5f5":"#555",fontWeight:v.ativo?600:400}}>{v.nome}</div>
+                      <button onClick={()=>toggleVendedor(v)} style={{background:v.ativo?"#052e16":"#1a1a1a",border:`1px solid ${v.ativo?"#16a34a":"#333"}`,borderRadius:20,padding:"4px 12px",color:v.ativo?"#16a34a":"#666",fontSize:11,cursor:"pointer",fontWeight:700}}>
+                        {v.ativo?"✓ Ativo":"Inativo"}
+                      </button>
+                    </div>
+                  ))}
+                  {vendedores.filter(v=>v.loja_id===settingsLoja.id).length===0&&(
+                    <div style={{fontSize:12,color:"#555",marginBottom:12}}>Nenhum vendedor cadastrado ainda.</div>
+                  )}
+                  <div style={{display:"flex",gap:8,marginTop:14}}>
+                    <input style={{...S.inp,marginBottom:0,flex:1}} placeholder="Nome do novo vendedor" value={newVendedor} onChange={e=>setNewVendedor(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addVendedor()} />
+                    <button onClick={addVendedor} style={{background:"#f5c518",color:"#000",border:"none",borderRadius:8,padding:"0 16px",fontWeight:700,cursor:"pointer",flexShrink:0}}>+ Add</button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div style={{fontSize:17,fontWeight:700,color:"#f5c518"}}>⚙️ Configurações</div>
+                  <button onClick={()=>setShowSettings(false)} style={{background:"#222",border:"none",color:"#888",fontSize:18,cursor:"pointer",borderRadius:20,width:32,height:32}}>✕</button>
+                </div>
+
+                {/* Dias úteis */}
+                <div style={{background:"#0a0a0a",borderRadius:12,padding:14,marginBottom:16}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#f5c518",marginBottom:2}}>📅 Dias Úteis por Mês</div>
+                  <div style={{fontSize:12,color:"#888",marginBottom:12}}>Configure considerando feriados do mês.</div>
+                  {[0,1,2].map(offset=>{
+                    const d=new Date(); d.setMonth(d.getMonth()+offset);
+                    const ym=d.toISOString().slice(0,7);
+                    const nomeMes=d.toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
+                    const du=diasUteisPorMes[ym]||26;
+                    return(
+                      <div key={ym} style={{marginBottom:10,padding:10,background:"#111",borderRadius:10,border:offset===0?"1px solid #f5c51833":"1px solid #1f1f1f"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                          <div style={{fontSize:13,fontWeight:700,color:offset===0?"#f5c518":"#f5f5f5",textTransform:"capitalize"}}>{nomeMes} {offset===0&&<span style={{fontSize:10,color:"#f5c518"}}> · VIGENTE</span>}</div>
+                          <div style={{fontSize:20,fontWeight:900,color:offset===0?"#f5c518":"#888"}}>{du}d</div>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <button onClick={()=>setDiasUteisPorMes(prev=>({...prev,[ym]:Math.max(1,(prev[ym]||26)-1)}))} style={{background:"#222",border:"1px solid #333",borderRadius:8,width:30,height:30,color:"#f5f5f5",fontSize:16,cursor:"pointer",fontWeight:700}}>−</button>
+                          <div style={{display:"flex",gap:4,flex:1,flexWrap:"wrap"}}>
+                            {[18,19,20,21,22,23,24,25,26].map(n=>(
+                              <button key={n} onClick={()=>setDiasUteisPorMes(prev=>({...prev,[ym]:n}))} style={{padding:"3px 6px",borderRadius:14,border:du===n?"1px solid #f5c518":"1px solid #222",background:du===n?"#1a1200":"#0a0a0a",color:du===n?"#f5c518":"#555",fontSize:11,cursor:"pointer"}}>{n}</button>
+                            ))}
+                          </div>
+                          <button onClick={()=>setDiasUteisPorMes(prev=>({...prev,[ym]:Math.min(31,(prev[ym]||26)+1)}))} style={{background:"#222",border:"1px solid #333",borderRadius:8,width:30,height:30,color:"#f5f5f5",fontSize:16,cursor:"pointer",fontWeight:700}}>+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Lojas */}
+                <div style={{fontSize:13,fontWeight:700,color:"#f5c518",marginBottom:10}}>🏪 Gerenciar Lojas</div>
+                <div style={{fontSize:12,color:"#888",marginBottom:12}}>Clique em uma loja para editar gerente, meta e vendedores.</div>
+                {uLojas.map(l=>{
+                  const vendCount = vendedores.filter(v=>v.loja_id===l.id&&v.ativo).length;
+                  return(
+                    <div key={l.id} onClick={()=>{setSettingsLoja(l);setSettingsLojaForm({gerente:l.gerente||"",meta_mensal:l.meta_mensal||0});}} style={{...S.card,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",padding:14}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:14}}>{l.nome}</div>
+                        <div style={{fontSize:12,color:"#888",marginTop:2}}>👤 {l.gerente||"Sem gerente"} · {vendCount} vendedor{vendCount!==1?"es":""}</div>
+                        <div style={{fontSize:11,color:"#666",marginTop:2}}>Meta: R$ {(l.meta_mensal||0).toLocaleString("pt-BR")}/mês</div>
+                      </div>
+                      <div style={{fontSize:18,color:"#f5c518"}}>→</div>
+                    </div>
+                  );
+                })}
+
+                <button style={{...S.bp,marginTop:12}} onClick={async()=>{
+                  const duEntries = Object.entries(diasUteisPorMes).map(([ano_mes,dias])=>({ano_mes,dias}));
+                  if(duEntries.length) await sb("dias_uteis",{method:"POST",headers:{Prefer:"resolution=merge-duplicates"},body:JSON.stringify(duEntries)});
+                  setShowSettings(false);
+                }}>Salvar Dias Úteis ✓</button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -832,6 +1018,38 @@ export default function App() {
                   );
                 })()}
               </div>
+
+              {/* Breakdown por vendedor */}
+              {(()=>{
+                const lojaObj = uLojas.find(l=>l.nome===dashLoja);
+                if(!lojaObj) return null;
+                const {from, to} = dashPeriodRange;
+                const vendedoresLoja = vendedores.filter(v=>v.loja_id===lojaObj.id&&v.ativo);
+                if(!vendedoresLoja.length) return null;
+                const vendData = vendedoresLoja.map(v=>{
+                  const vi = uIndV.filter(i=>i.vendedor_id===v.id&&i.data>=from&&i.data<=to);
+                  if(!vi.length) return null;
+                  const totalV=vi.reduce((a,i)=>a+i.vendas,0);
+                  const totalVR=vi.reduce((a,i)=>a+i.vendas_realizadas,0);
+                  const totalAt=vi.reduce((a,i)=>a+i.atendimentos,0);
+                  return { name:v.nome.split(" ")[0], meta:0, conversao:totalAt>0?Math.round((totalVR/totalAt)*100):0, ticket:totalVR>0?Math.round(totalV/totalVR):0, vendas:totalV, totalVR, totalAt };
+                }).filter(Boolean);
+                if(!vendData.length) return null;
+                return(
+                  <div style={{...S.card,padding:"12px 4px",marginTop:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:"#a855f7",marginBottom:8,paddingLeft:12}}>👥 Por Vendedor · {dashLoja}</div>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={vendData.sort((a,b)=>b[ck==="meta"?"vendas":ck]-a[ck==="meta"?"vendas":ck])} margin={{left:-10,right:10,bottom:40}}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f"/>
+                        <XAxis dataKey="name" tick={{fill:"#ccc",fontSize:10}} interval={0} angle={-35} textAnchor="end" height={60}/>
+                        <YAxis tick={{fill:"#666",fontSize:10}}/>
+                        <Tooltip contentStyle={{background:"#1a1a1a",border:"1px solid #333",borderRadius:8,color:"#f5f5f5"}} formatter={(v,n,p)=>{ if(ck==="ticket") return [`R$ ${v}`,"Ticket"]; if(ck==="conversao") return [`${v}% (${p.payload.totalVR}v)`,"Conversão"]; return [`R$ ${p.payload.vendas?.toLocaleString("pt-BR")}`,"Vendas"]; }}/>
+                        <Bar dataKey={ck==="meta"?"vendas":ck} fill="#a855f7" radius={[4,4,0,0]} name={cl}/>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              })()}
             ) : chartData.length>0 ? (
               /* All stores → bar chart by store for selected period */
               <div style={{...S.card,padding:"12px 4px"}}>

@@ -176,7 +176,7 @@ export default function App() {
     const entries = Object.entries(gerenteIndForm).filter(([k]) => k.match(/^\d+$/));
     const toSave = entries.map(([vendId, vals]) => {
       const a = parseInt(vals.atendimentos)||0; const vr = parseInt(vals.vendas_realizadas)||0; const v = parseFloat(vals.vendas)||0;
-      return { vendedor_id:parseInt(vendId), vendedor_nome:vendedores.find(vd=>vd.id===parseInt(vendId))?.nome||"", loja_id:lojaId, loja_nome:uLojas[0]?.nome||"", usuario_id:user.id, gerente_nome:user.nome, data:gerenteIndDate, vendas:v, atendimentos:a, vendas_realizadas:vr, conversao:a>0?Math.round((vr/a)*100):0, ticket_medio:vr>0?Math.round(v/vr):0, obs:vals.obs||"" };
+      return { vendedor_id:parseInt(vendId), vendedor_nome:vendedores.find(vd=>vd.id===parseInt(vendId))?.nome||"", loja_id:lojaId, loja_nome:uLojas.find(l=>l.id===lojaId)?.nome||"", usuario_id:user.id, gerente_nome:user.nome, data:gerenteIndDate, vendas:v, atendimentos:a, vendas_realizadas:vr, conversao:a>0?Math.round((vr/a)*100):0, ticket_medio:vr>0?Math.round(v/vr):0, meta_dia:metaVendedorDia, obs:vals.obs||"" };
     }).filter(e => e.vendas>0||e.atendimentos>0);
     if(!toSave.length) return alert("Preencha os dados de pelo menos um vendedor.");
     const result = await sb("indicadores_vendedor", { method:"POST", body:JSON.stringify(toSave) });
@@ -595,6 +595,8 @@ export default function App() {
   if(page==="gerente_ind") {
     const lojaGerente = gerenteLoja || uLojas[0];
     const lojaVendedores = vendedores.filter(v=>v.loja_id===lojaGerente?.id&&v.ativo);
+    const metaVendedor = lojaVendedores.length > 0 ? Math.round((metas[lojaGerente?.id]||lojaGerente?.meta_mensal||0) / lojaVendedores.length) : 0;
+    const metaVendedorDia = diasUteis > 0 ? Math.round(metaVendedor / diasUteis) : 0;
     const jaLancou = lojaVendedores.some(v=>uIndV.some(i=>i.vendedor_id===v.id&&i.data===gerenteIndDate));
     return(
       <div style={S.app}>
@@ -620,6 +622,12 @@ export default function App() {
           <div style={S.card}>
             <label style={S.lbl}>Data de Referência</label>
             <input style={{...S.inp,colorScheme:"dark"}} type="date" value={gerenteIndDate} onChange={e=>setGerenteIndDate(e.target.value)} />
+            {metaVendedorDia > 0 && (
+              <div style={{background:"#0a0a0a",borderRadius:8,padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:12,color:"#888"}}>Meta por vendedor/dia</div>
+                <div style={{fontSize:16,fontWeight:900,color:"#f5c518"}}>R$ {metaVendedorDia.toLocaleString("pt-BR")}</div>
+              </div>
+            )}
           </div>
 
           {lojaVendedores.length===0&&(
@@ -630,9 +638,13 @@ export default function App() {
             const form = gerenteIndForm[v.id]||{};
             const a=parseInt(form.atendimentos)||0; const vr=parseInt(form.vendas_realizadas)||0; const venda=parseFloat(form.vendas)||0;
             const conv=a>0?Math.round((vr/a)*100):0; const ticket=vr>0?Math.round(venda/vr):0;
+            const percMeta = metaVendedorDia>0 ? Math.round((venda/metaVendedorDia)*100) : 0;
             return(
-              <div key={v.id} style={{...S.card,marginBottom:10}}>
-                <div style={{fontSize:15,fontWeight:700,color:"#f5c518",marginBottom:12}}>👤 {v.nome}</div>
+              <div key={v.id} style={{...S.card,marginBottom:10,borderLeft:`3px solid ${venda>0?(percMeta>=100?"#16a34a":percMeta>=70?"#d97706":"#dc2626"):"#222"}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <div style={{fontSize:15,fontWeight:700,color:"#f5c518"}}>👤 {v.nome}</div>
+                  {metaVendedorDia>0&&<div style={{fontSize:11,color:"#666"}}>Meta: R$ {metaVendedorDia.toLocaleString("pt-BR")}</div>}
+                </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
                   <div>
                     <label style={S.lbl}>Vendas (R$)</label>
@@ -648,11 +660,19 @@ export default function App() {
                   </div>
                   <div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
                     {(venda>0||a>0)&&(
-                      <div style={{background:"#0a0a0a",borderRadius:8,padding:"6px 10px",textAlign:"center"}}>
-                        <div style={{fontSize:15,fontWeight:900,color:"#a855f7"}}>{conv}%</div>
-                        <div style={{fontSize:9,color:"#666"}}>CONVERSÃO</div>
-                        <div style={{fontSize:13,fontWeight:700,color:"#16a34a",marginTop:2}}>R$ {ticket}</div>
-                        <div style={{fontSize:9,color:"#666"}}>TICKET</div>
+                      <div style={{background:"#0a0a0a",borderRadius:8,padding:"6px 10px"}}>
+                        {metaVendedorDia>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                          <span style={{fontSize:9,color:"#666"}}>META</span>
+                          <span style={{fontSize:13,fontWeight:900,color:percMeta>=100?"#16a34a":percMeta>=70?"#d97706":"#dc2626"}}>{percMeta}%</span>
+                        </div>}
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                          <span style={{fontSize:9,color:"#666"}}>CONV.</span>
+                          <span style={{fontSize:13,fontWeight:900,color:"#a855f7"}}>{conv}%</span>
+                        </div>
+                        <div style={{display:"flex",justifyContent:"space-between"}}>
+                          <span style={{fontSize:9,color:"#666"}}>TICKET</span>
+                          <span style={{fontSize:13,fontWeight:700,color:"#16a34a"}}>R${ticket}</span>
+                        </div>
                       </div>
                     )}
                   </div>

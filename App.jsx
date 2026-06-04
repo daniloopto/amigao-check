@@ -929,8 +929,7 @@ export default function App() {
                   </>
                 )}
 
-                <button style={S.bp} onClick={()=>{
-                  const updated = {...editingPend, data_conclusao:editingPend.status==="resolvido"?today:null};
+                <button style={S.bp} onClick={async()=>{
                   await sb(`pendencias?id=eq.${editingPend.id}`,{method:"PATCH",body:JSON.stringify({prioridade:updated.prioridade,status:updated.status,prazo:updated.prazo||null,responsavel:updated.responsavel,obs_responsavel:updated.obs_responsavel,data_conclusao:updated.data_conclusao})});
                   setPendencias(prev=>prev.map(p=>p.id===editingPend.id?updated:p));
                   setEditingPend(null);
@@ -994,8 +993,7 @@ export default function App() {
 
                 <button style={{...S.bp,opacity:newPendForm.loja_id&&newPendForm.problema?1:0.5}}
                   disabled={!(newPendForm.loja_id&&newPendForm.problema)}
-                  onClick={()=>{
-                    const loja=uLojas.find(l=>l.id===parseInt(newPendForm.loja_id));
+                  onClick={async()=>{
                     const payload = {loja_id:parseInt(newPendForm.loja_id),loja_nome:loja?.nome||"",supervisor_nome:user.nome,categoria:newPendForm.categoria,problema:newPendForm.problema,responsavel:newPendForm.responsavel,prazo:newPendForm.prazo||null,prioridade:newPendForm.prioridade,status:"pendente",obs_responsavel:newPendForm.obs,tipo:newPendForm.tipo};
                     const result = await sb("pendencias",{method:"POST",body:JSON.stringify(payload)});
                     if(result) setPendencias(prev=>[...(Array.isArray(result)?result:[result]),...prev]);

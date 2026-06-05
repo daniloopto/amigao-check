@@ -190,10 +190,12 @@ export default function App() {
   const saveGerenteInd = async () => {
     const lojaId = gerenteLoja?.id || uLojas[0]?.id;
     if(!lojaId) return;
+    const lojaVend = vendedores.filter(v=>v.loja_id===lojaId&&v.ativo);
+    const metaDia = lojaVend.length>0 ? Math.round((metas[lojaId]||0) / lojaVend.length / diasUteis) : 0;
     const entries = Object.entries(gerenteIndForm).filter(([k]) => k.match(/^\d+$/));
     const toSave = entries.map(([vendId, vals]) => {
       const a = parseInt(vals.atendimentos)||0; const vr = parseInt(vals.vendas_realizadas)||0; const v = parseFloat(vals.vendas)||0;
-      return { vendedor_id:parseInt(vendId), vendedor_nome:vendedores.find(vd=>vd.id===parseInt(vendId))?.nome||"", loja_id:lojaId, loja_nome:uLojas.find(l=>l.id===lojaId)?.nome||"", usuario_id:user.id, gerente_nome:user.nome, data:gerenteIndDate, vendas:v, atendimentos:a, vendas_realizadas:vr, conversao:a>0?Math.round((vr/a)*100):0, ticket_medio:vr>0?Math.round(v/vr):0, meta_dia:metaVendedorDia, obs:vals.obs||"" };
+      return { vendedor_id:parseInt(vendId), vendedor_nome:vendedores.find(vd=>vd.id===parseInt(vendId))?.nome||"", loja_id:lojaId, loja_nome:uLojas.find(l=>l.id===lojaId)?.nome||"", usuario_id:user.id, gerente_nome:user.nome, data:gerenteIndDate, vendas:v, atendimentos:a, vendas_realizadas:vr, conversao:a>0?Math.round((vr/a)*100):0, ticket_medio:vr>0?Math.round(v/vr):0, meta_dia:metaDia, obs:vals.obs||"" };
     }).filter(e => e.vendas>0||e.atendimentos>0);
     if(!toSave.length) return alert("Preencha os dados de pelo menos um vendedor.");
     const result = await sb("indicadores_vendedor", { method:"POST", body:JSON.stringify(toSave) });

@@ -176,8 +176,11 @@ export default function App() {
         body:file,
       });
       if(r.ok) return `${SUPA_URL}/storage/v1/object/public/fotos-amigao/${filename}`;
+      const err = await r.text();
+      console.error('Upload failed:', r.status, err);
+      alert(`Erro ao enviar foto (${r.status}). Verifique se o bucket "fotos-amigao" está configurado como público no Supabase Storage.`);
       return null;
-    } catch(e) { console.error('Upload error:', e); return null; }
+    } catch(e) { console.error('Upload error:', e); alert('Erro de conexão ao enviar foto.'); return null; }
   };
 
   const deleteInd = async (ind) => {
@@ -1321,20 +1324,12 @@ export default function App() {
                 <label style={S.lbl}>Observação / Ação tomada</label>
                 <textarea style={{...S.inp,height:70,resize:"none"}} placeholder="Descreva a ação tomada ou andamento..." value={editingPend.obs_responsavel||""} onChange={e=>setEditingPend({...editingPend,obs_responsavel:e.target.value})} />
 
-                <button style={S.bp} onClick={async()=>{
-                  const updated = {...editingPend, data_conclusao:editingPend.status==="resolvido"?getToday():null};
-                  await sb(`pendencias?id=eq.${editingPend.id}`,{method:"PATCH",body:JSON.stringify({prioridade:updated.prioridade,status:updated.status,prazo:updated.prazo||null,responsavel:updated.responsavel,obs_responsavel:updated.obs_responsavel,data_conclusao:updated.data_conclusao,foto_abertura:updated.foto_abertura||null,foto_conclusao:updated.foto_conclusao||null})});
-                  setPendencias(prev=>prev.map(p=>p.id===editingPend.id?updated:p));
-                  setEditingPend(null);
-                }}>Salvar Alterações ✓</button>
-
                 {/* Foto abertura */}
-                <label style={{...S.lbl,marginTop:8}}>📷 Foto de Abertura (opcional)</label>
-                {editingPend.foto_abertura&&(
-                  <div style={{marginBottom:8}}>
-                    <img src={editingPend.foto_abertura} alt="Abertura" style={{width:"100%",borderRadius:8,maxHeight:200,objectFit:"cover"}} />
-                  </div>
-                )}
+                <label style={{...S.lbl,marginTop:4}}>📷 Foto de Abertura (opcional)</label>
+                {editingPend.foto_abertura
+                  ? <div style={{marginBottom:8}}><img src={editingPend.foto_abertura} alt="Abertura" style={{width:"100%",borderRadius:8,maxHeight:180,objectFit:"cover",cursor:"pointer"}} onClick={()=>window.open(editingPend.foto_abertura,'_blank')}/><div style={{fontSize:10,color:"#16a34a",marginTop:4,marginBottom:4}}>✓ Foto salva · toque para ampliar</div></div>
+                  : null
+                }
                 <input type="file" accept="image/*" capture="environment" style={{fontSize:12,color:"#888",marginBottom:12,width:"100%"}} onChange={async e=>{
                   const file = e.target.files[0]; if(!file) return;
                   const url = await uploadFoto(file, `pend-${editingPend.id}-abertura`);
@@ -1345,18 +1340,24 @@ export default function App() {
                 {editingPend.status==="resolvido"&&(
                   <>
                     <label style={S.lbl}>📷 Foto de Conclusão (opcional)</label>
-                    {editingPend.foto_conclusao&&(
-                      <div style={{marginBottom:8}}>
-                        <img src={editingPend.foto_conclusao} alt="Conclusão" style={{width:"100%",borderRadius:8,maxHeight:200,objectFit:"cover"}} />
-                      </div>
-                    )}
+                    {editingPend.foto_conclusao
+                      ? <div style={{marginBottom:8}}><img src={editingPend.foto_conclusao} alt="Conclusão" style={{width:"100%",borderRadius:8,maxHeight:180,objectFit:"cover",cursor:"pointer"}} onClick={()=>window.open(editingPend.foto_conclusao,'_blank')}/><div style={{fontSize:10,color:"#16a34a",marginTop:4,marginBottom:4}}>✓ Foto salva · toque para ampliar</div></div>
+                      : null
+                    }
                     <input type="file" accept="image/*" capture="environment" style={{fontSize:12,color:"#888",marginBottom:12,width:"100%"}} onChange={async e=>{
                       const file = e.target.files[0]; if(!file) return;
                       const url = await uploadFoto(file, `pend-${editingPend.id}-conclusao`);
                       if(url) setEditingPend(prev=>({...prev,foto_conclusao:url}));
-                    }}/> 
+                    }}/>
                   </>
                 )}
+
+                <button style={S.bp} onClick={async()=>{
+                  const updated = {...editingPend, data_conclusao:editingPend.status==="resolvido"?getToday():null};
+                  await sb(`pendencias?id=eq.${editingPend.id}`,{method:"PATCH",body:JSON.stringify({prioridade:updated.prioridade,status:updated.status,prazo:updated.prazo||null,responsavel:updated.responsavel,obs_responsavel:updated.obs_responsavel,data_conclusao:updated.data_conclusao,foto_abertura:updated.foto_abertura||null,foto_conclusao:updated.foto_conclusao||null})});
+                  setPendencias(prev=>prev.map(p=>p.id===editingPend.id?updated:p));
+                  setEditingPend(null);
+                }}>Salvar Alterações ✓</button>
               </div>
             </div>
           )}

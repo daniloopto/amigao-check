@@ -99,7 +99,7 @@ export default function App() {
   const [rankBy, setRankBy] = useState("geral"); const [rankPeriod, setRankPeriod] = useState("30"); const [rankFrom, setRankFrom] = useState(""); const [rankTo, setRankTo] = useState(today);
 
   // Indicadores form
-  const [indLoja, setIndLoja] = useState(null); const [indForm, setIndForm] = useState({ data:today, vendas:"", receita:"", atendimentos:"", vendas_realizadas:"", obs:"" }); const [indDone, setIndDone] = useState(false);
+  const [indLoja, setIndLoja] = useState(null); const [indForm, setIndForm] = useState({ data:today, vendas:"", receita:"", caixa:"", atendimentos:"", vendas_realizadas:"", obs:"" }); const [indDone, setIndDone] = useState(false);
   const [indFilter, setIndFilter] = useState("7"); const [indFilterLoja, setIndFilterLoja] = useState("todas");
 
   // Visita/Checklist
@@ -275,7 +275,7 @@ export default function App() {
     const percReceita=v>0?Math.round((rec/v)*100):0;
     const metaDia=Math.round((metas[indLoja.id]||indLoja.meta_mensal||0)/diasUteis);
     const dataLancamento=indForm.data||today;
-    const payload = { loja_id:indLoja.id, loja_nome:indLoja.nome, usuario_id:user.id, supervisor_nome:user.nome, data:dataLancamento, vendas:v, receita:rec, perc_receita:percReceita, meta_dia:metaDia, atendimentos:a, vendas_realizadas:vr, conversao:conv, ticket_medio:ticket, obs:indForm.obs||"" };
+    const payload = { loja_id:indLoja.id, loja_nome:indLoja.nome, usuario_id:user.id, supervisor_nome:user.nome, data:dataLancamento, vendas:v, receita:rec, caixa:parseFloat(indForm.caixa)||0, perc_receita:percReceita, meta_dia:metaDia, atendimentos:a, vendas_realizadas:vr, conversao:conv, ticket_medio:ticket, obs:indForm.obs||"" };
     const result = await sb("indicadores", { method:"POST", body:JSON.stringify(payload) });
     if(result) { setIndicadores(prev=>[...(Array.isArray(result)?result:[result]), ...prev]); setIndDone(true); }
     else alert("Erro ao salvar indicadores. Tente novamente.");
@@ -301,7 +301,7 @@ export default function App() {
     } catch(err) { console.error("Erro ao salvar visita:", err); alert("Erro ao salvar: " + err.message); }
   };
 
-  const reset = () => { setSelStore(null); setClDone(false); setAnswers({}); setClStep(0); setClLoja(null); setVForm({data:getToday(),vendas:"",atendimentos:"",vendas_realizadas:"",type:"Rotina",gerente:"Sim",obs:""}); setIndDone(false); setIndLoja(null); setIndForm({data:getToday(),vendas:"",receita:"",atendimentos:"",vendas_realizadas:"",obs:""}); setGerenteLoja(null); };
+  const reset = () => { setSelStore(null); setClDone(false); setAnswers({}); setClStep(0); setClLoja(null); setVForm({data:getToday(),vendas:"",atendimentos:"",vendas_realizadas:"",type:"Rotina",gerente:"Sim",obs:""}); setIndDone(false); setIndLoja(null); setIndForm({data:getToday(),vendas:"",receita:"",caixa:"",atendimentos:"",vendas_realizadas:"",obs:""}); setGerenteLoja(null); };
 
   const S = {
     app:{minHeight:"100vh",background:"#0a0a0a",color:"#f5f5f5",fontFamily:"'Segoe UI',system-ui,sans-serif",paddingBottom:120},
@@ -436,6 +436,8 @@ export default function App() {
             <input style={S.inp} type="number" onWheel={e=>e.target.blur()} placeholder="Valor total das vendas" value={indForm.vendas} onChange={e=>setIndForm({...indForm,vendas:e.target.value})} />
             <label style={S.lbl}>Receita do Dia (R$)</label>
             <input style={S.inp} type="number" onWheel={e=>e.target.blur()} placeholder="Valor efetivamente recebido" value={indForm.receita} onChange={e=>setIndForm({...indForm,receita:e.target.value})} />
+            <label style={S.lbl}>Caixa (R$)</label>
+            <input style={S.inp} type="number" onWheel={e=>e.target.blur()} placeholder="Valor total do caixa" value={indForm.caixa} onChange={e=>setIndForm({...indForm,caixa:e.target.value})} />
             <label style={S.lbl}>Atendimentos</label>
             <input style={S.inp} type="number" onWheel={e=>e.target.blur()} placeholder="Qtd de clientes atendidos" value={indForm.atendimentos} onChange={e=>setIndForm({...indForm,atendimentos:e.target.value})} />
             <label style={S.lbl}>Vendas Realizadas</label>
@@ -997,10 +999,10 @@ export default function App() {
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,padding:"12px 14px 0"}}>
             {[
-              {label:"Lançamentos Hoje",value:uInd.filter(i=>i.data===today).length,sub:`de ${uLojas.length} lojas`,color:"#f5c518"},
+              {label:"Lançamentos Hoje",value:uInd.filter(i=>i.data===getToday()).length,sub:`de ${uLojas.length} lojas`,color:"#f5c518"},
               {label:"Pendências",value:uPend.filter(p=>p.status!=="resolvido").length,sub:"abertas",color:"#dc2626"},
-              {label:"Melhor Conversão",value:`${Math.max(0,...uInd.filter(i=>i.data===today).map(i=>i.conversao))}%`,sub:uInd.filter(i=>i.data===today).sort((a,b)=>b.conversao-a.conversao)[0]?.loja_nome||"-",color:"#a855f7"},
-              {label:"Melhor Meta",value:`${Math.max(0,...uInd.filter(i=>i.data===today).map(i=>Math.round((i.vendas/i.meta_dia)*100)))}%`,sub:"hoje",color:"#16a34a"},
+              {label:"Melhor Conversão",value:`${Math.max(0,...uInd.filter(i=>i.data===getToday()).map(i=>i.conversao))}%`,sub:uInd.filter(i=>i.data===getToday()).sort((a,b)=>b.conversao-a.conversao)[0]?.loja_nome||"-",color:"#a855f7"},
+              {label:"Melhor Meta",value:`${Math.max(0,...uInd.filter(i=>i.data===getToday()).map(i=>Math.round((i.vendas/(i.meta_dia||1))*100)))}%`,sub:"hoje",color:"#16a34a"},
             ].map((s,i)=>(
               <div key={i} style={{background:"#161616",border:`1px solid ${s.color}22`,borderRadius:10,padding:14,textAlign:"center"}}>
                 <div style={{fontSize:24,fontWeight:900,color:s.color,lineHeight:1}}>{s.value}</div>
@@ -1009,6 +1011,36 @@ export default function App() {
               </div>
             ))}
           </div>
+
+          {/* Caixa consolidado */}
+          {(()=>{
+            const indHoje = uInd.filter(i=>i.data===getToday()&&(i.caixa||0)>0);
+            if(!indHoje.length) return null;
+            const totalCaixa = indHoje.reduce((s,i)=>s+(i.caixa||0),0);
+            const totalVendas = indHoje.reduce((s,i)=>s+(i.vendas||0),0);
+            return(
+              <div style={{margin:"10px 14px 0",background:"#0a1a0a",border:"1px solid #16a34a44",borderRadius:12,padding:"14px 16px"}}>
+                <div style={{fontSize:11,color:"#16a34a",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>💰 Caixa Consolidado Hoje · {indHoje.length} loja{indHoje.length!==1?"s":""}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:36,fontWeight:900,color:"#16a34a",lineHeight:1}}>R$ {totalCaixa.toLocaleString("pt-BR")}</div>
+                    <div style={{fontSize:11,color:"#888",marginTop:4}}>Total de todas as lojas</div>
+                  </div>
+                  {totalVendas>0&&<div style={{textAlign:"right"}}>
+                    <div style={{fontSize:20,fontWeight:900,color:"#f5c518"}}>{Math.round((totalCaixa/totalVendas)*100)}%</div>
+                    <div style={{fontSize:10,color:"#888"}}>do total vendas</div>
+                  </div>}
+                </div>
+                <div style={{marginTop:10,display:"flex",flexWrap:"wrap",gap:6}}>
+                  {indHoje.sort((a,b)=>b.caixa-a.caixa).map(i=>(
+                    <div key={i.id} style={{background:"#0d0d0d",borderRadius:8,padding:"4px 10px",fontSize:11}}>
+                      <span style={{color:"#888"}}>{i.loja_nome.split(" ")[0]}</span> <span style={{color:"#16a34a",fontWeight:700}}>R$ {(i.caixa||0).toLocaleString("pt-BR")}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           <div style={S.sec}>
             <div style={S.ttl}>Análise de Indicadores</div>
             <div style={{...S.card,padding:12}}>

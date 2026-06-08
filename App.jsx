@@ -1307,17 +1307,8 @@ export default function App() {
                 <label style={S.lbl}>Observação / Ação tomada</label>
                 <textarea style={{...S.inp,height:70,resize:"none"}} placeholder="Descreva a ação tomada ou andamento..." value={editingPend.obs_responsavel||""} onChange={e=>setEditingPend({...editingPend,obs_responsavel:e.target.value})} />
 
-                <label style={S.lbl}>📷 Foto de Abertura</label>
-                <input type="file" accept="image/*" capture="environment" style={{...S.inp,padding:8,fontSize:12,color:"#888"}} />
-
-                {editingPend.status==="resolvido"&&(
-                  <>
-                    <label style={S.lbl}>📷 Foto de Conclusão</label>
-                    <input type="file" accept="image/*" capture="environment" style={{...S.inp,padding:8,fontSize:12,color:"#888"}} />
-                  </>
-                )}
-
                 <button style={S.bp} onClick={async()=>{
+                  const updated = {...editingPend, data_conclusao:editingPend.status==="resolvido"?getToday():null};
                   await sb(`pendencias?id=eq.${editingPend.id}`,{method:"PATCH",body:JSON.stringify({prioridade:updated.prioridade,status:updated.status,prazo:updated.prazo||null,responsavel:updated.responsavel,obs_responsavel:updated.obs_responsavel,data_conclusao:updated.data_conclusao})});
                   setPendencias(prev=>prev.map(p=>p.id===editingPend.id?updated:p));
                   setEditingPend(null);

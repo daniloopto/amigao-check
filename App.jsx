@@ -1408,12 +1408,10 @@ export default function App() {
                   ))}
                 </div>
 
-                <label style={S.lbl}>📷 Foto de Abertura</label>
-                <input type="file" accept="image/*" capture="environment" style={{...S.inp,padding:8,fontSize:12,color:"#888"}} />
-
                 <label style={S.lbl}>Observação</label>
                 <textarea style={{...S.inp,height:60,resize:"none"}} placeholder="Observações adicionais..." value={newPendForm.obs} onChange={e=>setNewPendForm({...newPendForm,obs:e.target.value})} />
-                <label style={S.lbl}>📷 Foto de Abertura (opcional)</label>
+
+                <label style={{...S.lbl,marginTop:4}}>📷 Foto de Abertura (opcional)</label>
                 {newPendForm.foto_abertura&&<img src={newPendForm.foto_abertura} alt="preview" style={{width:"100%",borderRadius:8,maxHeight:160,objectFit:"cover",marginBottom:8}}/>}
                 <input type="file" accept="image/*" capture="environment" style={{fontSize:12,color:"#888",marginBottom:12,width:"100%"}} onChange={async e=>{
                   const file = e.target.files[0]; if(!file) return;
@@ -1424,10 +1422,16 @@ export default function App() {
                 <button style={{...S.bp,opacity:newPendForm.loja_id&&newPendForm.problema?1:0.5}}
                   disabled={!(newPendForm.loja_id&&newPendForm.problema)}
                   onClick={async()=>{
-                    const loja = uLojas.find(l=>l.id===parseInt(newPendForm.loja_id));
-                    const payload = {loja_id:parseInt(newPendForm.loja_id),loja_nome:loja?.nome||"",supervisor_nome:user.nome,categoria:newPendForm.categoria,problema:newPendForm.problema,responsavel:newPendForm.responsavel,prazo:newPendForm.prazo||null,prioridade:newPendForm.prioridade,status:"pendente",obs_responsavel:newPendForm.obs,tipo:newPendForm.tipo,foto_abertura:newPendForm.foto_abertura||null};
+                    const loja = uLojas.find(l=>String(l.id)===String(newPendForm.loja_id));
+                    const payload = {loja_id:parseInt(newPendForm.loja_id),loja_nome:loja?.nome||"",supervisor_nome:user.nome,categoria:newPendForm.categoria||"Geral",problema:newPendForm.problema,responsavel:newPendForm.responsavel||"",prazo:newPendForm.prazo||null,prioridade:newPendForm.prioridade,status:"pendente",obs_responsavel:newPendForm.obs||"",tipo:newPendForm.tipo,foto_abertura:newPendForm.foto_abertura||null};
                     const result = await sb("pendencias",{method:"POST",body:JSON.stringify(payload)});
-                    if(result) setPendencias(prev=>[...(Array.isArray(result)?result:[result]),...prev]);
+                    if(!result) { alert("Erro ao salvar. Verifique a conexão."); return; }
+                    if(result.code||result.error) { alert("Erro: " + (result.message||result.error)); return; }
+                    const nova = Array.isArray(result) ? result[0] : result;
+                    if(nova?.id) {
+                      setPendencias(prev=>[nova,...prev]);
+                      setSelPendStore(null);
+                    }
                     setNewPend(false);
                     setNewPendForm({loja_id:"",problema:"",categoria:"",responsavel:"",prazo:"",prioridade:"alta",obs:"",tipo:"processo",foto_abertura:""});
                   }}>Criar Pendência ✓</button>

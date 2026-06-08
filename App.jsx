@@ -111,7 +111,7 @@ export default function App() {
   const [selPendStore, setSelPendStore] = useState(null);
   const [editingPend, setEditingPend] = useState(null);
   const [newPend, setNewPend] = useState(false);
-  const [newPendForm, setNewPendForm] = useState({ loja_id:"", problema:"", categoria:"", responsavel:"", prazo:"", prioridade:"alta", obs:"", tipo:"processo" });
+  const [newPendForm, setNewPendForm] = useState({ loja_id:"", problema:"", categoria:"", responsavel:"", prazo:"", prioridade:"alta", obs:"", tipo:"processo", foto_abertura:"" });
 
   // Lojas
   const [selStore, setSelStore] = useState(null); const [histFilter, setHistFilter] = useState("30"); const [histFrom, setHistFrom] = useState(""); const [histTo, setHistTo] = useState(today);
@@ -164,6 +164,20 @@ export default function App() {
     await sb(`indicadores?id=eq.${editingInd.id}`, { method:"PATCH", body:JSON.stringify(payload) });
     setIndicadores(prev=>prev.map(i=>i.id===editingInd.id?{...i,...payload}:i));
     setEditingInd(null);
+  };
+
+  const uploadFoto = async (file, prefix) => {
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const filename = `${prefix}-${Date.now()}.${ext}`;
+      const r = await fetch(`${SUPA_URL}/storage/v1/object/fotos-amigao/${filename}`, {
+        method:'POST',
+        headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}`, 'Content-Type':file.type||'image/jpeg' },
+        body:file,
+      });
+      if(r.ok) return `${SUPA_URL}/storage/v1/object/public/fotos-amigao/${filename}`;
+      return null;
+    } catch(e) { console.error('Upload error:', e); return null; }
   };
 
   const deleteInd = async (ind) => {
@@ -1309,10 +1323,40 @@ export default function App() {
 
                 <button style={S.bp} onClick={async()=>{
                   const updated = {...editingPend, data_conclusao:editingPend.status==="resolvido"?getToday():null};
-                  await sb(`pendencias?id=eq.${editingPend.id}`,{method:"PATCH",body:JSON.stringify({prioridade:updated.prioridade,status:updated.status,prazo:updated.prazo||null,responsavel:updated.responsavel,obs_responsavel:updated.obs_responsavel,data_conclusao:updated.data_conclusao})});
+                  await sb(`pendencias?id=eq.${editingPend.id}`,{method:"PATCH",body:JSON.stringify({prioridade:updated.prioridade,status:updated.status,prazo:updated.prazo||null,responsavel:updated.responsavel,obs_responsavel:updated.obs_responsavel,data_conclusao:updated.data_conclusao,foto_abertura:updated.foto_abertura||null,foto_conclusao:updated.foto_conclusao||null})});
                   setPendencias(prev=>prev.map(p=>p.id===editingPend.id?updated:p));
                   setEditingPend(null);
                 }}>Salvar Alterações ✓</button>
+
+                {/* Foto abertura */}
+                <label style={{...S.lbl,marginTop:8}}>📷 Foto de Abertura (opcional)</label>
+                {editingPend.foto_abertura&&(
+                  <div style={{marginBottom:8}}>
+                    <img src={editingPend.foto_abertura} alt="Abertura" style={{width:"100%",borderRadius:8,maxHeight:200,objectFit:"cover"}} />
+                  </div>
+                )}
+                <input type="file" accept="image/*" capture="environment" style={{fontSize:12,color:"#888",marginBottom:12,width:"100%"}} onChange={async e=>{
+                  const file = e.target.files[0]; if(!file) return;
+                  const url = await uploadFoto(file, `pend-${editingPend.id}-abertura`);
+                  if(url) setEditingPend(prev=>({...prev,foto_abertura:url}));
+                }}/>
+
+                {/* Foto conclusão */}
+                {editingPend.status==="resolvido"&&(
+                  <>
+                    <label style={S.lbl}>📷 Foto de Conclusão (opcional)</label>
+                    {editingPend.foto_conclusao&&(
+                      <div style={{marginBottom:8}}>
+                        <img src={editingPend.foto_conclusao} alt="Conclusão" style={{width:"100%",borderRadius:8,maxHeight:200,objectFit:"cover"}} />
+                      </div>
+                    )}
+                    <input type="file" accept="image/*" capture="environment" style={{fontSize:12,color:"#888",marginBottom:12,width:"100%"}} onChange={async e=>{
+                      const file = e.target.files[0]; if(!file) return;
+                      const url = await uploadFoto(file, `pend-${editingPend.id}-conclusao`);
+                      if(url) setEditingPend(prev=>({...prev,foto_conclusao:url}));
+                    }}/> 
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1369,15 +1413,23 @@ export default function App() {
 
                 <label style={S.lbl}>Observação</label>
                 <textarea style={{...S.inp,height:60,resize:"none"}} placeholder="Observações adicionais..." value={newPendForm.obs} onChange={e=>setNewPendForm({...newPendForm,obs:e.target.value})} />
+                <label style={S.lbl}>📷 Foto de Abertura (opcional)</label>
+                {newPendForm.foto_abertura&&<img src={newPendForm.foto_abertura} alt="preview" style={{width:"100%",borderRadius:8,maxHeight:160,objectFit:"cover",marginBottom:8}}/>}
+                <input type="file" accept="image/*" capture="environment" style={{fontSize:12,color:"#888",marginBottom:12,width:"100%"}} onChange={async e=>{
+                  const file = e.target.files[0]; if(!file) return;
+                  const url = await uploadFoto(file, `pend-nova-${Date.now()}`);
+                  if(url) setNewPendForm(prev=>({...prev,foto_abertura:url}));
+                }}/>
 
                 <button style={{...S.bp,opacity:newPendForm.loja_id&&newPendForm.problema?1:0.5}}
                   disabled={!(newPendForm.loja_id&&newPendForm.problema)}
                   onClick={async()=>{
-                    const payload = {loja_id:parseInt(newPendForm.loja_id),loja_nome:loja?.nome||"",supervisor_nome:user.nome,categoria:newPendForm.categoria,problema:newPendForm.problema,responsavel:newPendForm.responsavel,prazo:newPendForm.prazo||null,prioridade:newPendForm.prioridade,status:"pendente",obs_responsavel:newPendForm.obs,tipo:newPendForm.tipo};
+                    const loja = uLojas.find(l=>l.id===parseInt(newPendForm.loja_id));
+                    const payload = {loja_id:parseInt(newPendForm.loja_id),loja_nome:loja?.nome||"",supervisor_nome:user.nome,categoria:newPendForm.categoria,problema:newPendForm.problema,responsavel:newPendForm.responsavel,prazo:newPendForm.prazo||null,prioridade:newPendForm.prioridade,status:"pendente",obs_responsavel:newPendForm.obs,tipo:newPendForm.tipo,foto_abertura:newPendForm.foto_abertura||null};
                     const result = await sb("pendencias",{method:"POST",body:JSON.stringify(payload)});
                     if(result) setPendencias(prev=>[...(Array.isArray(result)?result:[result]),...prev]);
                     setNewPend(false);
-                    setNewPendForm({loja_id:"",problema:"",categoria:"",responsavel:"",prazo:"",prioridade:"alta",obs:"",tipo:"processo"});
+                    setNewPendForm({loja_id:"",problema:"",categoria:"",responsavel:"",prazo:"",prioridade:"alta",obs:"",tipo:"processo",foto_abertura:""});
                   }}>Criar Pendência ✓</button>
               </div>
             </div>
@@ -1478,6 +1530,18 @@ export default function App() {
                       {p.data_conclusao&&<div><div style={{fontSize:10,color:"#666"}}>CONCLUÍDO</div><div style={{fontSize:12,fontWeight:600,color:"#16a34a"}}>{new Date(p.data_conclusao).toLocaleDateString("pt-BR")}</div></div>}
                     </div>
                     {p.obs_responsavel&&<div style={{fontSize:12,color:"#888",marginTop:8,fontStyle:"italic"}}>💬 "{p.obs_responsavel}"</div>}
+                    {(p.foto_abertura||p.foto_conclusao)&&(
+                      <div style={{display:"flex",gap:8,marginTop:10}}>
+                        {p.foto_abertura&&<div style={{flex:1}}>
+                          <div style={{fontSize:10,color:"#666",marginBottom:4}}>📷 ABERTURA</div>
+                          <img src={p.foto_abertura} alt="abertura" style={{width:"100%",borderRadius:6,maxHeight:120,objectFit:"cover",cursor:"pointer"}} onClick={()=>window.open(p.foto_abertura,'_blank')}/>
+                        </div>}
+                        {p.foto_conclusao&&<div style={{flex:1}}>
+                          <div style={{fontSize:10,color:"#666",marginBottom:4}}>📷 CONCLUSÃO</div>
+                          <img src={p.foto_conclusao} alt="conclusão" style={{width:"100%",borderRadius:6,maxHeight:120,objectFit:"cover",cursor:"pointer"}} onClick={()=>window.open(p.foto_conclusao,'_blank')}/>
+                        </div>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

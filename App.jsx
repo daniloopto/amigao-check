@@ -1476,6 +1476,7 @@ export default function App() {
                       <div style={{display:"flex",gap:6,alignItems:"center"}}>
                         <span style={S.bdg(psc(p.status),`${psc(p.status)}22`)}>{p.status?.toUpperCase()}</span>
                         <button onClick={()=>setEditingPend({...p})} style={{background:"#1a1a1a",border:"1px solid #333",borderRadius:6,padding:"3px 8px",color:"#888",fontSize:11,cursor:"pointer"}}>✏️ Editar</button>
+                        {user?.role==="diretor"&&<button onClick={async()=>{if(window.confirm("Excluir esta pendência?")){ await sb(`pendencias?id=eq.${p.id}`,{method:"DELETE"}); setPendencias(prev=>prev.filter(x=>x.id!==p.id)); }}} style={{background:"#1c0000",border:"1px solid #333",borderRadius:6,padding:"3px 8px",color:"#dc2626",fontSize:11,cursor:"pointer"}}>🗑️</button>}
                       </div>
                     </div>
                     <div style={{fontSize:14,fontWeight:600,marginBottom:6}}>{p.problema}</div>

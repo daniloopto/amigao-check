@@ -42,6 +42,7 @@ const stc = (s) => s==="verde"?"#16a34a":s==="amarelo"?"#d97706":"#dc2626";
 const stb = (s) => s==="verde"?"#052e16":s==="amarelo"?"#1c1200":"#1c0000";
 const pc = (p) => p==="critica"?"#dc2626":p==="alta"?"#f97316":p==="media"?"#d97706":"#6b7280";
 const psc = (s) => s==="vencido"?"#dc2626":s==="em andamento"?"#3b82f6":s==="resolvido"?"#16a34a":"#d97706";
+const fmtData = (d, opts) => d ? new Date(String(d).length<=10 ? d+"T12:00:00" : d).toLocaleDateString("pt-BR", opts) : "";
 const getToday = () => new Date().toISOString().split("T")[0];
 const today = getToday();
 const daysAgo = (d) => { const dt=new Date(); dt.setDate(dt.getDate()-d); return dt.toISOString().split("T")[0]; };
@@ -184,7 +185,7 @@ export default function App() {
   };
 
   const deleteInd = async (ind) => {
-    if(!window.confirm(`Excluir o lançamento de ${new Date(ind.data).toLocaleDateString("pt-BR")}?`)) return;
+    if(!window.confirm(`Excluir o lançamento de ${fmtData(ind.data)}?`)) return;
     await sb(`indicadores?id=eq.${ind.id}`, { method:"DELETE" });
     setIndicadores(prev=>prev.filter(i=>i.id!==ind.id));
   };
@@ -199,7 +200,7 @@ export default function App() {
   };
 
   const deleteIndV = async (ind) => {
-    if(!window.confirm(`Excluir indicadores de ${ind.vendedor_nome} em ${new Date(ind.data).toLocaleDateString("pt-BR")}?`)) return;
+    if(!window.confirm(`Excluir indicadores de ${ind.vendedor_nome} em ${fmtData(ind.data)}?`)) return;
     await sb(`indicadores_vendedor?id=eq.${ind.id}`, { method:"DELETE" });
     setIndVendedor(prev=>prev.filter(i=>i.id!==ind.id));
   };
@@ -248,7 +249,7 @@ export default function App() {
   };
 
   const deleteVisit = async () => {
-    if(!window.confirm(`Excluir a visita de ${new Date(viewingVisit.data_visita).toLocaleDateString("pt-BR")} da loja ${viewingVisit.loja_nome}? Esta ação não pode ser desfeita.`)) return;
+    if(!window.confirm(`Excluir a visita de ${fmtData(viewingVisit.data_visita)} da loja ${viewingVisit.loja_nome}? Esta ação não pode ser desfeita.`)) return;
     await sb(`respostas_checklist?visita_id=eq.${viewingVisit.id}`, { method:"DELETE" });
     await sb(`visitas?id=eq.${viewingVisit.id}`, { method:"DELETE" });
     setVisitas(prev=>prev.filter(v=>v.id!==viewingVisit.id));
@@ -388,9 +389,9 @@ export default function App() {
         <div style={{padding:16,textAlign:"center"}}>
           <div style={{fontSize:56,marginBottom:12}}>📈</div>
           <div style={{fontSize:22,fontWeight:900,color:"#f5c518"}}>Indicadores Salvos!</div>
-          <div style={{fontSize:14,color:"#888",marginTop:8}}>Loja: <strong style={{color:"#f5f5f5"}}>{indLoja?.nome}</strong> · {new Date(indForm.data).toLocaleDateString("pt-BR")}</div>
+          <div style={{fontSize:14,color:"#888",marginTop:8}}>Loja: <strong style={{color:"#f5f5f5"}}>{indLoja?.nome}</strong> · {fmtData(indForm.data)}</div>
           <div style={{...S.card,textAlign:"left",marginTop:20}}>
-            {[["Data",new Date(indForm.data).toLocaleDateString("pt-BR"),"#888"],["Vendas",`R$ ${parseFloat(indForm.vendas).toLocaleString("pt-BR")}`,"#3b82f6"],["Receita",`R$ ${parseFloat(indForm.receita||0).toLocaleString("pt-BR")}`,"#16a34a"],["Receita / Vendas",`${parseFloat(indForm.vendas)>0?Math.round((parseFloat(indForm.receita||0)/parseFloat(indForm.vendas))*100):0}%`,"#f5c518"],["Atendimentos",indForm.atendimentos,"#f5c518"],["Vendas Realizadas",indForm.vendas_realizadas,"#16a34a"],["Conversão",`${parseInt(indForm.atendimentos)>0?Math.round((parseInt(indForm.vendas_realizadas)/parseInt(indForm.atendimentos))*100):0}%`,"#a855f7"],["Ticket Médio",`R$ ${parseInt(indForm.vendas_realizadas)>0?Math.round(parseFloat(indForm.vendas)/parseInt(indForm.vendas_realizadas)):0}`,"#f97316"]].map(([k,v,c])=>(
+            {[["Data",fmtData(indForm.data),"#888"],["Vendas",`R$ ${parseFloat(indForm.vendas).toLocaleString("pt-BR")}`,"#3b82f6"],["Receita",`R$ ${parseFloat(indForm.receita||0).toLocaleString("pt-BR")}`,"#16a34a"],["Receita / Vendas",`${parseFloat(indForm.vendas)>0?Math.round((parseFloat(indForm.receita||0)/parseFloat(indForm.vendas))*100):0}%`,"#f5c518"],["Atendimentos",indForm.atendimentos,"#f5c518"],["Vendas Realizadas",indForm.vendas_realizadas,"#16a34a"],["Conversão",`${parseInt(indForm.atendimentos)>0?Math.round((parseInt(indForm.vendas_realizadas)/parseInt(indForm.atendimentos))*100):0}%`,"#a855f7"],["Ticket Médio",`R$ ${parseInt(indForm.vendas_realizadas)>0?Math.round(parseFloat(indForm.vendas)/parseInt(indForm.vendas_realizadas)):0}`,"#f97316"]].map(([k,v,c])=>(
               <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid #1f1f1f"}}>
                 <span style={{fontSize:13,color:"#888"}}>{k}</span>
                 <span style={{fontSize:15,fontWeight:700,color:c}}>{v}</span>
@@ -502,7 +503,7 @@ export default function App() {
               {uInd.filter(i=>i.loja_id===indLoja.id).slice(0,5).map(i=>(
                 <div key={i.id} style={{...S.card,padding:12}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div style={{fontSize:12,fontWeight:700}}>{new Date(i.data).toLocaleDateString("pt-BR")}</div>
+                    <div style={{fontSize:12,fontWeight:700}}>{fmtData(i.data)}</div>
                     <span style={S.bdg(i.perc_meta>=100||i.vendas>=i.meta_dia?"#16a34a":"#dc2626",i.vendas>=i.meta_dia?"#052e16":"#1c0000")}>{Math.round((i.vendas/(i.meta_dia||1))*100)}% meta</span>
                   </div>
                   <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
@@ -742,7 +743,7 @@ export default function App() {
           {/* Histórico recente */}
           {uIndV.filter(i=>i.loja_id===lojaGerente?.id&&i.data===gerenteIndDate).length>0&&(
             <div style={{marginTop:16}}>
-              <div style={{fontSize:14,fontWeight:700,color:"#888",marginBottom:8}}>JÁ LANÇADO — {new Date(gerenteIndDate+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</div>
+              <div style={{fontSize:14,fontWeight:700,color:"#888",marginBottom:8}}>JÁ LANÇADO — {fmtData(gerenteIndDate,{day:"2-digit",month:"2-digit"})}</div>
               {uIndV.filter(i=>i.loja_id===lojaGerente?.id&&i.data===gerenteIndDate).map(i=>(
                 <div key={i.id} style={{...S.card,padding:12}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
@@ -1550,8 +1551,8 @@ export default function App() {
                     <div style={{fontSize:12,color:"#888"}}>📂 {p.categoria} · <span style={{color:p.tipo==="manutencao"?"#3b82f6":"#888"}}>{p.tipo==="manutencao"?"🔧 Manutenção":"🏪 Processo"}</span></div>
                     <div style={{display:"flex",gap:16,marginTop:10,paddingTop:10,borderTop:"1px solid #1f1f1f",flexWrap:"wrap"}}>
                       <div><div style={{fontSize:10,color:"#666"}}>RESPONSÁVEL</div><div style={{fontSize:12,fontWeight:600}}>{p.responsavel||"—"}</div></div>
-                      {p.prazo&&<div><div style={{fontSize:10,color:"#666"}}>PRAZO</div><div style={{fontSize:12,fontWeight:600,color:p.status==="vencido"?"#dc2626":"#f5f5f5"}}>{new Date(p.prazo).toLocaleDateString("pt-BR")}</div></div>}
-                      {p.data_conclusao&&<div><div style={{fontSize:10,color:"#666"}}>CONCLUÍDO</div><div style={{fontSize:12,fontWeight:600,color:"#16a34a"}}>{new Date(p.data_conclusao).toLocaleDateString("pt-BR")}</div></div>}
+                      {p.prazo&&<div><div style={{fontSize:10,color:"#666"}}>PRAZO</div><div style={{fontSize:12,fontWeight:600,color:p.status==="vencido"?"#dc2626":"#f5f5f5"}}>{fmtData(p.prazo)}</div></div>}
+                      {p.data_conclusao&&<div><div style={{fontSize:10,color:"#666"}}>CONCLUÍDO</div><div style={{fontSize:12,fontWeight:600,color:"#16a34a"}}>{fmtData(p.data_conclusao)}</div></div>}
                     </div>
                     {p.obs_responsavel&&<div style={{fontSize:12,color:"#888",marginTop:8,fontStyle:"italic"}}>💬 "{p.obs_responsavel}"</div>}
                     {(p.foto_abertura||p.foto_conclusao)&&(
@@ -1644,7 +1645,7 @@ export default function App() {
               <div style={{...S.card,padding:"12px 4px",marginTop:10}}>
                 <div style={{fontSize:13,fontWeight:700,color:"#f5c518",marginBottom:8,paddingLeft:12}}>Evolução da Nota</div>
                 <ResponsiveContainer width="100%" height={160}>
-                  <LineChart data={[...storeVisits].reverse().map(v=>({data:new Date(v.data_visita).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}),nota:v.nota_final}))} margin={{left:-10,right:10}}>
+                  <LineChart data={[...storeVisits].reverse().map(v=>({data:fmtData(v.data_visita,{day:"2-digit",month:"2-digit"}),nota:v.nota_final}))} margin={{left:-10,right:10}}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f"/>
                     <XAxis dataKey="data" tick={{fill:"#666",fontSize:9}}/>
                     <YAxis domain={[0,100]} tick={{fill:"#666",fontSize:10}}/>
@@ -1659,7 +1660,7 @@ export default function App() {
               <div style={{...S.card,padding:"12px 4px"}}>
                 <div style={{fontSize:13,fontWeight:700,color:"#3b82f6",marginBottom:8,paddingLeft:12}}>Evolução Comercial</div>
                 <ResponsiveContainer width="100%" height={160}>
-                  <LineChart data={[...storeInd].reverse().map(i=>({data:new Date(i.data).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}),meta:Math.round((i.vendas/i.meta_dia)*100),conversao:i.conversao}))} margin={{left:-10,right:10}}>
+                  <LineChart data={[...storeInd].reverse().map(i=>({data:fmtData(i.data,{day:"2-digit",month:"2-digit"}),meta:Math.round((i.vendas/i.meta_dia)*100),conversao:i.conversao}))} margin={{left:-10,right:10}}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f"/>
                     <XAxis dataKey="data" tick={{fill:"#666",fontSize:9}}/>
                     <YAxis tick={{fill:"#666",fontSize:10}}/>
@@ -1723,7 +1724,7 @@ export default function App() {
               {storeInd.map(i=>(
                 <div key={i.id} style={{...S.card,borderLeft:`3px solid ${i.vendas>=i.meta_dia?"#16a34a":"#dc2626"}`}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div style={{fontSize:13,fontWeight:700}}>{new Date(i.data).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"})}</div>
+                    <div style={{fontSize:13,fontWeight:700}}>{fmtData(i.data,{weekday:"short",day:"2-digit",month:"2-digit"})}</div>
                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                       <span style={S.bdg(i.vendas>=i.meta_dia?"#16a34a":"#dc2626",i.vendas>=i.meta_dia?"#052e16":"#1c0000")}>{Math.round((i.vendas/(i.meta_dia||1))*100)}% meta</span>
                       {user?.role==="diretor"&&<>
@@ -1750,7 +1751,7 @@ export default function App() {
               {storeVisits.map(v=>(
                 <div key={v.id} style={{...S.card,borderLeft:`3px solid ${sc(v.nota_final)}`}}>
                   <div style={{display:"flex",justifyContent:"space-between"}}>
-                    <div><div style={{fontSize:13,fontWeight:700}}>{new Date(v.data_visita).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"})}</div><div style={{fontSize:11,color:"#666"}}>{v.supervisor_nome} · {v.tipo_visita}</div></div>
+                    <div><div style={{fontSize:13,fontWeight:700}}>{fmtData(v.data_visita,{weekday:"short",day:"2-digit",month:"2-digit"})}</div><div style={{fontSize:11,color:"#666"}}>{v.supervisor_nome} · {v.tipo_visita}</div></div>
                     <div style={{textAlign:"right"}}><div style={{fontSize:26,fontWeight:900,color:sc(v.nota_final)}}>{v.nota_final}</div><span style={S.bdg(stc(v.status_loja),stb(v.status_loja))}>{v.status_loja?.toUpperCase()}</span></div>
                   </div>
                   {v.obs_geral&&<div style={{fontSize:12,color:"#888",marginTop:8,fontStyle:"italic"}}>"{v.obs_geral}"</div>}
@@ -1766,7 +1767,7 @@ export default function App() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
                     <div>
                       <div style={{fontSize:16,fontWeight:700,color:"#f5c518"}}>📋 Visita · {viewingVisit.loja_nome}</div>
-                      <div style={{fontSize:12,color:"#888"}}>{new Date(viewingVisit.data_visita).toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})} · {viewingVisit.supervisor_nome}</div>
+                      <div style={{fontSize:12,color:"#888"}}>{fmtData(viewingVisit.data_visita,{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})} · {viewingVisit.supervisor_nome}</div>
                     </div>
                     <button onClick={()=>{setViewingVisit(null);setVisitAnswers([]);setEditingVisitMode(false);}} style={{background:"#222",border:"none",color:"#888",fontSize:18,cursor:"pointer",borderRadius:20,width:32,height:32}}>✕</button>
                   </div>

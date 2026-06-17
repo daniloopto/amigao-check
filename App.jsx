@@ -237,6 +237,16 @@ export default function App() {
     setVendedores(prev=>prev.map(vd=>vd.id===v.id?{...vd,ativo:!vd.ativo}:vd));
   };
 
+  const deleteVendedor = async (v) => {
+    const temInd = indVendedor.some(i=>i.vendedor_id===v.id);
+    const aviso = temInd
+      ? `Excluir o vendedor "${v.nome}"?\n\n⚠️ Este vendedor já tem indicadores lançados. Os lançamentos antigos continuarão no histórico, mas o vendedor não poderá mais receber novos lançamentos.\n\nSe quiser preservar o cadastro, use "Inativar" ao invés de excluir.`
+      : `Excluir o vendedor "${v.nome}"? Esta ação não pode ser desfeita.`;
+    if(!window.confirm(aviso)) return;
+    await sb(`vendedores?id=eq.${v.id}`, { method:"DELETE" });
+    setVendedores(prev=>prev.filter(vd=>vd.id!==v.id));
+  };
+
   const deleteVisit = async () => {
     if(!window.confirm(`Excluir a visita de ${new Date(viewingVisit.data_visita).toLocaleDateString("pt-BR")} da loja ${viewingVisit.loja_nome}? Esta ação não pode ser desfeita.`)) return;
     await sb(`respostas_checklist?visita_id=eq.${viewingVisit.id}`, { method:"DELETE" });
@@ -311,8 +321,14 @@ export default function App() {
     // Save checklist answers
     const respostas = CHECKLIST_CATS.flatMap(cat=>cat.items.map((item,idx)=>answers[`${cat.id}_${idx}`]?{ visita_id:newVisit.id, categoria_id:cat.id, categoria_nome:cat.name, item_idx:idx, item_texto:item, resposta:answers[`${cat.id}_${idx}`], observacao:answers[`${cat.id}_${idx}_obs`]||null }:null).filter(Boolean));
     if(respostas.length) await sb("respostas_checklist", { method:"POST", body:JSON.stringify(respostas) });
-    // Save pendencias
-    const np = CHECKLIST_CATS.flatMap(cat=>cat.items.map((item,idx)=>answers[`${cat.id}_${idx}`]==="nao"?{ visita_id:newVisit.id, loja_id:clLoja.id, loja_nome:clLoja.nome, supervisor_nome:user.nome, categoria:cat.name, problema:item, responsavel:clLoja.gerente||"", prazo:answers[`${cat.id}_${idx}_prazo`]||null, prioridade:answers[`${cat.id}_${idx}_pri`]||"alta", status:"pendente", obs_responsavel:answers[`${cat.id}_${idx}_obs`]||"", tipo:answers[`${cat.id}_${idx}_tipo`]||"processo" }:null).filter(Boolean));
+    // Save pendencias — SÓ gera pendência se o supervisor marcou Processo ou Manutenção.
+    // "Não OK" sem tipo selecionado apenas impacta a nota.
+    const np = CHECKLIST_CATS.flatMap(cat=>cat.items.map((item,idx)=>{
+      const tipo = answers[`${cat.id}_${idx}_tipo`];
+      return (answers[`${cat.id}_${idx}`]==="nao" && (tipo==="processo"||tipo==="manutencao"))
+        ? { visita_id:newVisit.id, loja_id:clLoja.id, loja_nome:clLoja.nome, supervisor_nome:user.nome, categoria:cat.name, problema:item, responsavel:clLoja.gerente||"", prazo:answers[`${cat.id}_${idx}_prazo`]||null, prioridade:answers[`${cat.id}_${idx}_pri`]||"alta", status:"pendente", obs_responsavel:answers[`${cat.id}_${idx}_obs`]||"", tipo }
+        : null;
+    }).filter(Boolean));
     if(np.length) { const pendResult = await sb("pendencias", { method:"POST", body:JSON.stringify(np) }); if(pendResult) setPendencias(prev=>[...(Array.isArray(pendResult)?pendResult:[pendResult]),...prev]); }
     setClDone(true);
     } catch(err) { console.error("Erro ao salvar visita:", err); alert("Erro ao salvar: " + err.message); }
@@ -912,9 +928,12 @@ export default function App() {
                   {vendedores.filter(v=>v.loja_id===settingsLoja.id).map(v=>(
                     <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #1a1a1a"}}>
                       <div style={{fontSize:14,color:v.ativo?"#f5f5f5":"#555",fontWeight:v.ativo?600:400}}>{v.nome}</div>
-                      <button onClick={()=>toggleVendedor(v)} style={{background:v.ativo?"#052e16":"#1a1a1a",border:`1px solid ${v.ativo?"#16a34a":"#333"}`,borderRadius:20,padding:"4px 12px",color:v.ativo?"#16a34a":"#666",fontSize:11,cursor:"pointer",fontWeight:700}}>
-                        {v.ativo?"✓ Ativo":"Inativo"}
-                      </button>
+                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                        <button onClick={()=>toggleVendedor(v)} style={{background:v.ativo?"#052e16":"#1a1a1a",border:`1px solid ${v.ativo?"#16a34a":"#333"}`,borderRadius:20,padding:"4px 12px",color:v.ativo?"#16a34a":"#666",fontSize:11,cursor:"pointer",fontWeight:700}}>
+                          {v.ativo?"✓ Ativo":"Inativo"}
+                        </button>
+                        <button onClick={()=>deleteVendedor(v)} title="Excluir vendedor" style={{background:"#1c0000",border:"1px solid #3a0000",borderRadius:20,padding:"4px 10px",color:"#dc2626",fontSize:13,cursor:"pointer",fontWeight:700}}>🗑️</button>
+                      </div>
                     </div>
                   ))}
                   {vendedores.filter(v=>v.loja_id===settingsLoja.id).length===0&&(
